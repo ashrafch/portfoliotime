@@ -1,6 +1,9 @@
-# PortfolioTime — infrastruttura locale
-# Avvia con: docker compose up -d
-# NON include i container api e web (si avviano con uvicorn + pnpm per hot reload)
+# PortfolioTime — stack completo in Docker
+# Avvia tutto con: docker compose up -d
+# Avvia solo i database: docker compose up -d postgres redis qdrant
+#
+# Log in tempo reale: docker compose logs -f api
+# Rebuild dopo cambio requirements.txt: docker compose up -d --build api
 
 networks:
   portfoliotime_net:
@@ -73,8 +76,78 @@ services:
     networks:
       - portfoliotime_net
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:6333/healthz || exit 1"]
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:6333/healthz || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
       start_period: 20s
+
+  # ─────────────────────────────────────────
+  # FastAPI — backend con hot reload
+  # Il codice è montato come volume: modifichi il file → ricarica automatica
+  # Rebuild solo se cambia requirements.txt:
+  #   docker compose up -d --build api
+  # ─────────────────────────────────────────
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    container_name: portfoliotime_api
+    restart: unless-stopped
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount del codice sorgente per hot reload
+      - ./apps/api:/app
+      # Mount della knowledge-base per rag/ingestion.py
+      - ./knowledge-base:/knowledge-base:ro
+    env_file:
+      - .env
+    environment:
+      # Dentro Docker, i servizi si raggiungono per nome container
+      DATABASE_URL: postgresql://portfoliotime:portfoliotime@postgres:5432/portfoliotime
+      REDIS_URL: redis://redis:6379/0
+      QDRANT_URL: http://qdrant:6333
+    networks:
+      - portfoliotime_net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\" || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ─────────────────────────────────────────
+  # Next.js — frontend con hot reload
+  # Rebuild solo se cambia package.json:
+  #   docker compose up -d --build web
+  # ─────────────────────────────────────────
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile.dev
+    container_name: portfoliotime_web
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      # Mount del codice sorgente per hot reload
+      - ./apps/web:/app
+      # Esclude node_modules del container (non sovrascrivere con quello locale)
+      - /app/node_modules
+      - /app/.next
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+      WATCHPACK_POLLING: "true"
+    networks:
+      - portfoliotime_net
+    depends_on:
+      - api
