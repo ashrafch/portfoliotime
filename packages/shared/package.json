@@ -1,0 +1,7 @@
+{
+  "name": "@portfoliotime/shared",
+  "version": "0.1.0",
+  "main": "./scenarios.ts",
+  "types": "./scenarios.ts",
+  "private": true
+}
