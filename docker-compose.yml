@@ -1,5 +1,3 @@
-version: "3.9"
-
 # PortfolioTime — infrastruttura locale
 # Avvia con: docker compose up -d
 # NON include i container api e web (si avviano con uvicorn + pnpm per hot reload)
