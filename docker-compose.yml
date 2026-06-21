@@ -1,0 +1,82 @@
+version: "3.9"
+
+# PortfolioTime — infrastruttura locale
+# Avvia con: docker compose up -d
+# NON include i container api e web (si avviano con uvicorn + pnpm per hot reload)
+
+networks:
+  portfoliotime_net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  qdrant_data:
+
+services:
+
+  # ─────────────────────────────────────────
+  # PostgreSQL 16 + TimescaleDB
+  # ─────────────────────────────────────────
+  postgres:
+    image: timescale/timescaledb:latest-pg16
+    container_name: portfoliotime_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: portfoliotime
+      POSTGRES_PASSWORD: portfoliotime
+      POSTGRES_DB: portfoliotime
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - portfoliotime_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U portfoliotime -d portfoliotime"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ─────────────────────────────────────────
+  # Redis 7
+  # ─────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: portfoliotime_redis
+    restart: unless-stopped
+    command: redis-server --save 60 1 --loglevel warning
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - portfoliotime_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────
+  # Qdrant (vector database per RAG)
+  # Dashboard: http://localhost:6333/dashboard
+  # ─────────────────────────────────────────
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: portfoliotime_qdrant
+    restart: unless-stopped
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks:
+      - portfoliotime_net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:6333/healthz || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
