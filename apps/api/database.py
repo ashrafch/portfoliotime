@@ -16,8 +16,21 @@ class Base(DeclarativeBase):
 
 
 async def get_db() -> AsyncSession:
+    """Dependency FastAPI: fornisce una sessione DB per request."""
     async with AsyncSessionLocal() as session:
         try:
             yield session
         finally:
             await session.close()
+
+
+async def init_db() -> None:
+    """Crea tutte le tabelle se non esistono (idempotente).
+
+    Chiamato all'avvio dell'app. Importa i models prima del create_all
+    affinché siano registrati nel metadata.
+    """
+    import models  # noqa: F401 — registra User, SimulationRecord, PriceCache
+
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)

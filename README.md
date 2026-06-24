@@ -6,6 +6,38 @@ Piattaforma ibrida **AI + dati finanziari verificati** per simulare le performan
 
 ---
 
+## Avvio rapido (un comando)
+
+```bash
+docker compose up -d
+```
+
+Poi apri:
+- **Web app:** http://localhost:3000
+- **API (Swagger):** http://localhost:8000/docs
+
+All'avvio il backend crea automaticamente le tabelle e due account demo:
+
+| Ruolo | Email | Password | Può fare |
+|-------|-------|----------|----------|
+| **Super Admin** | `admin@portfoliotime.com` | `Admin123!` | Tutto + pannello admin (gestione utenti, statistiche, tutte le simulazioni) |
+| **Utente** | `user@portfoliotime.com` | `User123!` | Simulazioni e storico personale |
+
+> Funziona **senza alcuna API key**: i dati di mercato arrivano da Yahoo Finance (gratis, no key)
+> e la narrativa usa un fallback deterministico. Se imposti `ANTHROPIC_API_KEY` nel `.env`,
+> la narrativa viene generata da Claude.
+
+### Funzionalità
+
+- **Autenticazione JWT** con due ruoli (RBAC): super admin e utente standard
+- **Registrazione** self-service di nuovi utenti
+- **Simulazione storica** del Chameleon Portfolio su dati reali, con grafico equity vs benchmark
+- **Storico per-utente** persistito in PostgreSQL
+- **Pannello admin**: statistiche di piattaforma, gestione utenti (ruolo/attivazione/eliminazione), vista su tutte le simulazioni
+- **Narrativa AI** opzionale (Claude) con fallback template
+
+---
+
 ## Cos'è PortfolioTime
 
 PortfolioTime risponde a una domanda semplice: *"Come sarebbe andato il mio portafoglio nel 2008?"*
