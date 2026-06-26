@@ -29,10 +29,51 @@ SCENARIOS: list[Scenario] = [
 ]
 
 
+class MarketEvent(BaseModel):
+    date: str
+    label: str
+
+
+# Eventi macro storici reali (date verificabili). Usati per annotare i grafici.
+MARKET_EVENTS: list[MarketEvent] = [
+    MarketEvent(date="2000-03-10", label="Picco bolla dot-com (NASDAQ)"),
+    MarketEvent(date="2001-09-11", label="Attentati 11 settembre"),
+    MarketEvent(date="2002-07-21", label="Bancarotta WorldCom"),
+    MarketEvent(date="2007-10-09", label="Picco S&P 500 pre-crisi"),
+    MarketEvent(date="2008-03-16", label="Salvataggio Bear Stearns"),
+    MarketEvent(date="2008-09-15", label="Fallimento Lehman Brothers"),
+    MarketEvent(date="2008-10-03", label="Approvazione TARP ($700 mld)"),
+    MarketEvent(date="2009-03-09", label="Minimo della Grande Recessione"),
+    MarketEvent(date="2010-05-06", label="Flash Crash"),
+    MarketEvent(date="2011-08-05", label="Downgrade rating USA (S&P)"),
+    MarketEvent(date="2013-05-22", label="Taper tantrum"),
+    MarketEvent(date="2015-08-24", label="Black Monday cinese"),
+    MarketEvent(date="2016-06-24", label="Brexit"),
+    MarketEvent(date="2016-11-08", label="Elezione Trump"),
+    MarketEvent(date="2018-02-05", label="Volmageddon (spike VIX)"),
+    MarketEvent(date="2018-12-24", label="Minimo bear 2018"),
+    MarketEvent(date="2020-02-19", label="Picco pre-COVID"),
+    MarketEvent(date="2020-03-16", label="FED taglia i tassi a zero"),
+    MarketEvent(date="2020-03-23", label="Minimo COVID"),
+    MarketEvent(date="2021-11-10", label="Bitcoin all'ATH (~$69k)"),
+    MarketEvent(date="2022-02-24", label="Invasione dell'Ucraina"),
+    MarketEvent(date="2022-06-15", label="FED +75bp (primo dal 1994)"),
+    MarketEvent(date="2022-11-11", label="Crollo di FTX"),
+    MarketEvent(date="2023-03-10", label="Fallimento Silicon Valley Bank"),
+    MarketEvent(date="2023-05-25", label="Rally AI (boom Nvidia)"),
+]
+
+
 @router.get("", response_model=list[Scenario])
 async def list_scenarios():
     """Restituisce tutti gli scenari storici disponibili."""
     return SCENARIOS
+
+
+@router.get("/events", response_model=list[MarketEvent])
+async def events_in_range(date_from: str, date_to: str):
+    """Eventi macro reali compresi nell'intervallo [date_from, date_to]."""
+    return [e for e in MARKET_EVENTS if date_from <= e.date <= date_to]
 
 
 @router.get("/{scenario_id}", response_model=Scenario)

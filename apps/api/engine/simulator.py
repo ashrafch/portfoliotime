@@ -20,6 +20,12 @@ from engine.metrics import (
     calc_max_drawdown,
     calc_sharpe_ratio,
     calc_annualized_volatility,
+    calc_sortino_ratio,
+    calc_calmar_ratio,
+    calc_historical_var,
+    calc_historical_cvar,
+    calc_beta,
+    calc_underwater_recovery,
 )
 from data.yfinance_client import ASSET_TICKERS
 
@@ -40,6 +46,10 @@ class SimulationInput:
     date_from: str  # ISO 8601: "2007-01-01"
     date_to: str
     benchmark_ticker: str = "SPY"
+    # Importi (per esprimere i risultati in denaro). Valuta gestita lato presentazione.
+    initial_capital: float = 10000.0
+    contribution: float = 0.0           # versamento periodico (DCA)
+    contribution_frequency: str = "none"  # none | monthly | quarterly
 
 
 ASSET_KEYS = ["azioni", "bitcoin", "oro", "materie_prime", "obbligazioni"]
@@ -70,6 +80,16 @@ class SimulationResult:
     benchmark_max_drawdown: float
     benchmark_total_return: float
     equity_curve: list[dict]  # [{"date": "2008-01-02", "portfolio": 100.0, "benchmark": 100.0}, ...]
+    # Metriche di rischio avanzate
+    sortino_ratio: float = float("nan")
+    calmar_ratio: float = float("nan")
+    var_95: float = float("nan")          # VaR giornaliero storico 95% (decimale negativo)
+    cvar_95: float = float("nan")         # CVaR/Expected Shortfall giornaliero 95%
+    beta: float = float("nan")            # beta vs benchmark
+    max_underwater_days: Optional[int] = None
+    drawdown_recovered: bool = True
+    # Proiezione in denaro (lump sum e/o DCA)
+    money: dict = field(default_factory=dict)
     sources: dict[str, str] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
 
@@ -127,6 +147,13 @@ def run_simulation(
     volatility = calc_annualized_volatility(returns)
     total_ret = float(portfolio_series.iloc[-1] / portfolio_series.iloc[0] - 1.0)
 
+    # Metriche di rischio avanzate
+    sortino = calc_sortino_ratio(returns)
+    calmar = calc_calmar_ratio(cagr, max_dd)
+    var_95 = calc_historical_var(returns, 0.95)
+    cvar_95 = calc_historical_cvar(returns, 0.95)
+    underwater = calc_underwater_recovery(portfolio_series)
+
     # Rendimento reale: dedotto dall'inflazione annua dichiarata (source: calculated)
     real_ret = _real_return_from_annual_inflation(total_ret, sim_input, portfolio_series)
 
@@ -135,17 +162,22 @@ def run_simulation(
     if benchmark_series is not None:
         benchmark_series = benchmark_series.dropna()
     benchmark_curve = None
+    beta = float("nan")
     if benchmark_series is not None and len(benchmark_series) >= 2:
         benchmark_cagr = calc_cagr(benchmark_series)
         benchmark_dd = calc_max_drawdown(benchmark_series)
         benchmark_total = float(benchmark_series.iloc[-1] / benchmark_series.iloc[0] - 1.0)
         benchmark_curve = benchmark_series / benchmark_series.iloc[0] * 100.0
+        beta = calc_beta(returns, benchmark_series.pct_change().dropna())
     else:
         benchmark_cagr = float("nan")
         benchmark_dd = float("nan")
         benchmark_total = float("nan")
 
     equity_curve = _build_equity_curve(portfolio_series, benchmark_curve)
+
+    # Proiezione in denaro (lump sum + eventuale piano di accumulo)
+    money = _money_projection(portfolio_series, sim_input, total_ret)
 
     sources = {col: "yahoo_finance" for col in prices.columns}
     sources["real_return"] = "calculated"
@@ -158,8 +190,88 @@ def run_simulation(
         real_return=real_ret, total_return=total_ret,
         benchmark_cagr=benchmark_cagr, benchmark_max_drawdown=benchmark_dd,
         benchmark_total_return=benchmark_total,
-        equity_curve=equity_curve, sources=sources, warnings=warnings,
+        equity_curve=equity_curve,
+        sortino_ratio=sortino, calmar_ratio=calmar,
+        var_95=var_95, cvar_95=cvar_95, beta=beta,
+        max_underwater_days=underwater["max_underwater_days"],
+        drawdown_recovered=underwater["recovered"],
+        money=money,
+        sources=sources, warnings=warnings,
     )
+
+
+def compute_portfolio_returns(
+    sim_input: SimulationInput,
+    prices: pd.DataFrame,
+    allocation_override: dict[str, float] | None = None,
+) -> Optional[pd.Series]:
+    """Ricostruisce i rendimenti giornalieri del portafoglio (per Monte Carlo)."""
+    if allocation_override:
+        alloc = normalize_allocation(allocation_override)
+    else:
+        alloc = chameleon_portafoglio(
+            eta=sim_input.eta, tasso_fed=sim_input.tasso_fed, delta_tasso=sim_input.delta_tasso,
+            btc_prezzo_corrente=sim_input.btc_prezzo_corrente, btc_ath=sim_input.btc_ath,
+            is_post_halving=sim_input.is_post_halving, tasso_nominale=sim_input.tasso_nominale,
+            inflazione=sim_input.inflazione, tassi_in_calo=sim_input.tassi_in_calo,
+            qe_attivo=sim_input.qe_attivo,
+        )
+    series = _build_portfolio_series(prices, alloc, [])
+    if series is None or len(series) < 2:
+        return None
+    return series.pct_change().dropna()
+
+
+def _money_projection(
+    series: pd.Series, sim_input: SimulationInput, total_ret: float
+) -> dict:
+    """Proiezione in denaro: capitale iniziale (lump sum) + eventuale piano di accumulo.
+
+    Onestà metodologica:
+    - Il capitale iniziale cresce del rendimento time-weighted del portafoglio.
+    - Ogni versamento periodico cresce dalla sua data di ingresso alla fine.
+    - 'money_return' = valore finale / totale versato - 1 (rendimento semplice sul
+      capitale versato, NON annualizzato e diverso dal rendimento time-weighted).
+    """
+    initial = max(0.0, float(sim_input.initial_capital))
+    g0 = float(series.iloc[0])
+    g_end = float(series.iloc[-1])
+    growth_total = g_end / g0  # = 1 + total_ret
+
+    final_value = initial * growth_total
+    total_invested = initial
+    contributions_count = 0
+
+    contribution = max(0.0, float(sim_input.contribution))
+    freq = sim_input.contribution_frequency
+    if contribution > 0 and freq in ("monthly", "quarterly"):
+        pd_freq = "MS" if freq == "monthly" else "QS"
+        dates = pd.date_range(start=series.index[0], end=series.index[-1], freq=pd_freq)
+        for d in dates:
+            pos = int(series.index.searchsorted(d))
+            if pos >= len(series.index):
+                continue
+            g_i = float(series.iloc[pos])
+            if g_i <= 0:
+                continue
+            final_value += contribution * (g_end / g_i)
+            total_invested += contribution
+            contributions_count += 1
+
+    gain = final_value - total_invested
+    money_return = (final_value / total_invested - 1.0) if total_invested > 0 else float("nan")
+
+    return {
+        "initial_capital": round(initial, 2),
+        "final_value": round(final_value, 2),
+        "total_invested": round(total_invested, 2),
+        "gain": round(gain, 2),
+        "money_return": money_return,
+        "contribution": round(contribution, 2),
+        "contribution_frequency": freq,
+        "contributions_count": contributions_count,
+        "is_dca": contributions_count > 0,
+    }
 
 
 def _real_return_from_annual_inflation(

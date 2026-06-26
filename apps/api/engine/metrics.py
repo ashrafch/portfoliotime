@@ -326,3 +326,209 @@ def calc_real_return(
         return float("nan")
     avg_inflation = float(inflation_series.mean())
     return (1.0 + nominal_return) / (1.0 + avg_inflation) - 1.0
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# STRATO 2b — Metriche di rischio avanzate
+# ─────────────────────────────────────────────────────────────────────────────
+
+def calc_sortino_ratio(
+    returns: pd.Series,
+    risk_free_rate: float = 0.02,
+    periods_per_year: int = 252,
+) -> float:
+    """Sortino Ratio annualizzato — come Sharpe ma penalizza solo la volatilità negativa.
+
+    Formula: Sortino = (mean(excess) / downside_deviation) * sqrt(periods_per_year)
+             downside_deviation = sqrt( mean( min(0, excess)^2 ) )
+
+    A differenza dello Sharpe, non penalizza le oscillazioni positive.
+
+    Args:
+        returns: rendimenti periodici (non cumulativi).
+        risk_free_rate: tasso risk-free annuale.
+        periods_per_year: 252 per dati giornalieri.
+
+    Returns:
+        Sortino ratio. NaN se non ci sono rendimenti sotto la soglia (downside dev = 0).
+
+    Example:
+        >>> r = pd.Series([0.01, -0.02, 0.015, -0.01, 0.02])
+        >>> calc_sortino_ratio(r, risk_free_rate=0.0)  # > Sharpe sugli stessi dati
+    """
+    returns = returns.dropna()
+    if len(returns) < 2:
+        return float("nan")
+    rf_per_period = risk_free_rate / periods_per_year
+    excess = returns - rf_per_period
+    downside = excess.clip(upper=0.0)
+    downside_dev = float(np.sqrt((downside ** 2).mean()))
+    if downside_dev == 0 or np.isnan(downside_dev):
+        return float("nan")
+    return float((excess.mean() / downside_dev) * np.sqrt(periods_per_year))
+
+
+def calc_calmar_ratio(cagr: float, max_drawdown: float) -> float:
+    """Calmar Ratio = CAGR / |Max Drawdown|.
+
+    Misura il rendimento per unità di perdita massima subita. Più alto è meglio.
+
+    Args:
+        cagr: CAGR come decimale.
+        max_drawdown: max drawdown come decimale negativo.
+
+    Returns:
+        Calmar ratio. NaN se max_drawdown è 0 o non valido.
+
+    Example:
+        >>> calc_calmar_ratio(0.12, -0.30)
+        0.4
+    """
+    if max_drawdown is None or np.isnan(max_drawdown) or max_drawdown == 0:
+        return float("nan")
+    if cagr is None or np.isnan(cagr):
+        return float("nan")
+    return float(cagr / abs(max_drawdown))
+
+
+def calc_historical_var(returns: pd.Series, confidence: float = 0.95) -> float:
+    """Value at Risk storico (per periodo, tipicamente giornaliero).
+
+    Definizione: la perdita che NON viene superata nel `confidence`% dei periodi.
+    Restituita come rendimento decimale NEGATIVO (es. -0.034 = nel 5% dei giorni
+    peggiori si perde più del 3.4%).
+
+    Metodo: quantile empirico (storico), nessuna assunzione di normalità.
+
+    Args:
+        returns: rendimenti periodici.
+        confidence: livello di confidenza (default 0.95).
+
+    Returns:
+        VaR come decimale negativo. NaN se dati insufficienti.
+
+    Example:
+        >>> r = pd.Series([-0.05, -0.02, 0.0, 0.01, 0.03])
+        >>> calc_historical_var(r, 0.95)  # quantile 5%
+    """
+    returns = returns.dropna()
+    if len(returns) < 2:
+        return float("nan")
+    q = float(np.quantile(returns, 1.0 - confidence))
+    return q
+
+
+def calc_historical_cvar(returns: pd.Series, confidence: float = 0.95) -> float:
+    """Conditional VaR (Expected Shortfall): perdita media nei periodi peggiori.
+
+    Media dei rendimenti che cadono oltre la soglia VaR (coda sinistra).
+    Più severa del VaR. Restituita come decimale negativo.
+
+    Args:
+        returns: rendimenti periodici.
+        confidence: livello di confidenza (default 0.95).
+
+    Returns:
+        CVaR come decimale negativo. NaN se dati insufficienti.
+    """
+    returns = returns.dropna()
+    if len(returns) < 2:
+        return float("nan")
+    threshold = np.quantile(returns, 1.0 - confidence)
+    tail = returns[returns <= threshold]
+    if len(tail) == 0:
+        return float(threshold)
+    return float(tail.mean())
+
+
+def calc_beta(returns: pd.Series, benchmark_returns: pd.Series) -> float:
+    """Beta del portafoglio rispetto al benchmark.
+
+    Formula: Beta = Cov(R_p, R_b) / Var(R_b)
+    Beta=1 → si muove come il benchmark; >1 più volatile; <1 meno volatile.
+
+    Args:
+        returns: rendimenti del portafoglio.
+        benchmark_returns: rendimenti del benchmark.
+
+    Returns:
+        Beta. NaN se dati insufficienti o varianza benchmark = 0.
+
+    Example:
+        >>> import numpy as np
+        >>> b = pd.Series(np.random.normal(0, 0.01, 300))
+        >>> p = 1.5 * b  # beta atteso ~1.5
+        >>> round(calc_beta(p, b), 1)
+        1.5
+    """
+    df = pd.concat([returns, benchmark_returns], axis=1, join="inner").dropna()
+    if len(df) < 2:
+        return float("nan")
+    p = df.iloc[:, 0]
+    b = df.iloc[:, 1]
+    var_b = float(b.var())
+    if var_b == 0 or np.isnan(var_b):
+        return float("nan")
+    cov = float(np.cov(p, b)[0, 1])
+    return cov / var_b
+
+
+def calc_underwater_recovery(prices: pd.Series) -> dict:
+    """Tempo di recupero: il periodo più lungo passato sotto un massimo precedente.
+
+    Calcola, lungo la serie, la durata massima in giorni tra un picco e il momento
+    in cui il valore torna a superarlo (periodo "underwater"). Se alla fine del
+    periodo il portafoglio non ha recuperato l'ultimo picco, lo segnala.
+
+    Args:
+        prices: serie prezzi/equity con DatetimeIndex.
+
+    Returns:
+        dict con:
+          - max_underwater_days: int | None — durata massima del periodo underwater
+          - recovered: bool — se il drawdown peggiore è stato recuperato nel periodo
+
+    Example:
+        >>> idx = pd.to_datetime(["2020-01-01","2020-02-01","2020-06-01","2020-12-01"])
+        >>> calc_underwater_recovery(pd.Series([100, 80, 100, 120], index=idx))
+        # underwater da 2020-01-01 a 2020-06-01 → ~152 giorni, recovered True
+    """
+    prices = prices.dropna()
+    if len(prices) < 2:
+        return {"max_underwater_days": None, "recovered": True}
+
+    running_max = prices.cummax()
+    underwater = prices < running_max
+
+    max_days = 0
+    cur_start = None
+    longest_recovered = True
+
+    # peak time corrente = ultima data in cui prices == running_max
+    peak_time = prices.index[0]
+    for ts, is_uw in underwater.items():
+        if not is_uw:
+            # nuovo massimo: chiude eventuale periodo underwater
+            if cur_start is not None:
+                days = (ts - cur_start).days
+                if days > max_days:
+                    max_days = days
+                cur_start = None
+            peak_time = ts
+        else:
+            if cur_start is None:
+                cur_start = peak_time  # il periodo underwater parte dall'ultimo picco
+
+    # periodo underwater ancora aperto a fine serie → non recuperato
+    if cur_start is not None:
+        days = (prices.index[-1] - cur_start).days
+        if days >= max_days:
+            max_days = days
+            longest_recovered = False
+        else:
+            longest_recovered = False
+
+    return {
+        "max_underwater_days": int(max_days) if max_days > 0 else 0,
+        "recovered": longest_recovered,
+    }

@@ -8,11 +8,14 @@ Flusso: POST /simulate (autenticato) → esegue, salva, restituisce record compl
 R6: dati crypto validati >= 2013-01-01.
 """
 
+import csv
+import io
 import math
 from datetime import date
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Depends
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
@@ -22,8 +25,9 @@ from models.user import User, UserRole
 from models.portfolio import SimulationRecord
 from models.profile import InvestorProfile
 from security import get_current_user
-from engine.simulator import SimulationInput, run_simulation
+from engine.simulator import SimulationInput, run_simulation, compute_portfolio_returns
 from engine.narrative import build_narrative
+from engine.montecarlo import bootstrap_projection
 from data import price_repository, fred_client
 from config import get_settings
 
@@ -50,6 +54,17 @@ class SimulateRequest(BaseModel):
     # Allocazione personalizzata (opzionale): se presente sostituisce il Chameleon.
     # Chiavi: azioni, bitcoin, oro, materie_prime, obbligazioni. Somma normalizzata a 100.
     custom_allocation: Optional[dict[str, float]] = None
+    # Importi (proiezione in denaro)
+    initial_capital: float = Field(10000.0, ge=0.0, le=1_000_000_000.0)
+    contribution: float = Field(0.0, ge=0.0, le=10_000_000.0)
+    contribution_frequency: str = "none"  # none | monthly | quarterly
+
+    @field_validator("contribution_frequency")
+    @classmethod
+    def _valid_freq(cls, v: str) -> str:
+        if v not in ("none", "monthly", "quarterly"):
+            raise ValueError("contribution_frequency deve essere none|monthly|quarterly")
+        return v
 
     @field_validator("date_from", "date_to")
     @classmethod
@@ -106,6 +121,9 @@ async def create_simulation(
         inflazione=request.inflazione, tassi_in_calo=request.tassi_in_calo,
         qe_attivo=request.qe_attivo, date_from=request.date_from, date_to=request.date_to,
         benchmark_ticker=request.benchmark_ticker,
+        initial_capital=request.initial_capital,
+        contribution=request.contribution,
+        contribution_frequency=request.contribution_frequency,
     )
 
     label = f"{request.date_from} → {request.date_to}"
@@ -171,6 +189,14 @@ async def create_simulation(
             "benchmark_max_drawdown": result.benchmark_max_drawdown,
             "benchmark_total_return": result.benchmark_total_return,
             "equity_curve": result.equity_curve,
+            "sortino_ratio": result.sortino_ratio,
+            "calmar_ratio": result.calmar_ratio,
+            "var_95": result.var_95,
+            "cvar_95": result.cvar_95,
+            "beta": result.beta,
+            "max_underwater_days": result.max_underwater_days,
+            "drawdown_recovered": result.drawdown_recovered,
+            "money": result.money,
             "sources": sources,
             "warnings": all_warnings,
         })
@@ -233,6 +259,107 @@ async def get_simulation(
         "error": record.error,
         "created_at": record.created_at.isoformat() if record.created_at else None,
     }
+
+
+async def _load_owned_record(sim_id: str, current_user: User, db: AsyncSession) -> SimulationRecord:
+    record = (await db.execute(
+        select(SimulationRecord).where(SimulationRecord.id == sim_id)
+    )).scalar_one_or_none()
+    if record is None:
+        raise HTTPException(status_code=404, detail="Simulazione non trovata")
+    if record.user_id != current_user.id and current_user.role != UserRole.SUPER_ADMIN.value:
+        raise HTTPException(status_code=403, detail="Accesso negato")
+    return record
+
+
+def _input_from_params(p: dict) -> SimulationInput:
+    return SimulationInput(
+        eta=p.get("eta", 40), tasso_fed=p.get("tasso_fed", 0.0), delta_tasso=p.get("delta_tasso", 0.0),
+        btc_prezzo_corrente=p.get("btc_prezzo_corrente", 0.0), btc_ath=p.get("btc_ath", 0.0),
+        is_post_halving=p.get("is_post_halving", False), tasso_nominale=p.get("tasso_nominale", 0.0),
+        inflazione=p.get("inflazione", 0.0), tassi_in_calo=p.get("tassi_in_calo", False),
+        qe_attivo=p.get("qe_attivo", False), date_from=p["date_from"], date_to=p["date_to"],
+        benchmark_ticker=p.get("benchmark_ticker", "SPY"),
+        initial_capital=p.get("initial_capital", 10000.0),
+        contribution=p.get("contribution", 0.0),
+        contribution_frequency=p.get("contribution_frequency", "none"),
+    )
+
+
+def _tickers_for(p: dict) -> list[str]:
+    tickers = ["SPY", "TLT", "GLD", "GSG"]
+    custom = p.get("custom_allocation") or {}
+    if (p.get("is_post_halving") and p.get("btc_prezzo_corrente", 0) > 0) or custom.get("bitcoin", 0) > 0:
+        tickers.append("BTC-USD")
+    return tickers
+
+
+@router.get("/{sim_id}/montecarlo")
+async def montecarlo(
+    sim_id: str,
+    n_sims: int = 500,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Proiezione Monte Carlo (bootstrap) ricostruita dai dati della simulazione.
+
+    È una distribuzione di scenari plausibili, NON una previsione (vedi disclaimer).
+    """
+    n_sims = max(100, min(n_sims, 2000))
+    record = await _load_owned_record(sim_id, current_user, db)
+    p = record.input_params or {}
+
+    sim_input = _input_from_params(p)
+    prices, _, _ = await price_repository.get_prices(
+        db, _tickers_for(p), p["date_from"], p["date_to"]
+    )
+    returns = compute_portfolio_returns(sim_input, prices, p.get("custom_allocation"))
+    if returns is None or len(returns) < 20:
+        raise HTTPException(status_code=422, detail="Dati insufficienti per la proiezione Monte Carlo.")
+
+    projection = bootstrap_projection(returns, n_sims=n_sims)
+    if projection is None:
+        raise HTTPException(status_code=422, detail="Proiezione non calcolabile.")
+    return projection
+
+
+@router.get("/{sim_id}/export.csv")
+async def export_csv(
+    sim_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Esporta la curva equity e le metriche principali in CSV."""
+    record = await _load_owned_record(sim_id, current_user, db)
+    res = record.result or {}
+
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["PortfolioTime — esportazione simulazione"])
+    w.writerow(["periodo", record.label])
+    w.writerow([])
+    w.writerow(["metrica", "valore"])
+    for key in ["total_return", "cagr", "max_drawdown", "annualized_volatility",
+                "sharpe_ratio", "sortino_ratio", "calmar_ratio", "var_95", "cvar_95",
+                "beta", "real_return", "benchmark_total_return", "max_underwater_days"]:
+        if key in res:
+            w.writerow([key, res.get(key)])
+    money = res.get("money") or {}
+    for mk in ["initial_capital", "total_invested", "final_value", "gain", "money_return"]:
+        if mk in money:
+            w.writerow([f"money_{mk}", money.get(mk)])
+    w.writerow([])
+    w.writerow(["data", "portafoglio_base100", "benchmark_base100"])
+    for pt in res.get("equity_curve", []):
+        w.writerow([pt.get("date"), pt.get("portfolio"), pt.get("benchmark", "")])
+
+    buf.seek(0)
+    filename = f"portfoliotime_{sim_id[:8]}.csv"
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 def _to_summary(r: SimulationRecord) -> SimulationSummary:
