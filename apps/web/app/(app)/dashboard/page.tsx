@@ -13,6 +13,8 @@ export default function DashboardPage() {
   const [sims, setSims] = useState<SimulationSummary[]>([]);
   const [analytics, setAnalytics] = useState<PersonalAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
+  const [compareMode, setCompareMode] = useState(false);
+  const [selected, setSelected] = useState<string[]>([]);
   const router = useRouter();
 
   useEffect(() => {
@@ -22,23 +24,73 @@ export default function DashboardPage() {
     ]).finally(() => setLoading(false));
   }, []);
 
+  function toggleCompareMode() {
+    setCompareMode((m) => !m);
+    setSelected([]);
+  }
+
+  function toggleSelect(id: string) {
+    setSelected((cur) => {
+      if (cur.includes(id)) return cur.filter((x) => x !== id);
+      if (cur.length >= 2) return [cur[1], id]; // mantieni solo le ultime 2
+      return [...cur, id];
+    });
+  }
+
+  function handleRowClick(id: string) {
+    if (compareMode) toggleSelect(id);
+    else router.push(`/results/${id}`);
+  }
+
+  const completedSims = sims.filter((s) => s.status === "completed");
+
   return (
     <div>
-      <div className="mb-8 flex items-center justify-between">
+      <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-3xl font-bold">Ciao, {user?.full_name || "investitore"}</h1>
           <p className="text-slate-400">Le tue simulazioni di portafoglio</p>
         </div>
-        <Link
-          href="/simulate"
-          className="rounded-lg bg-green-500 px-5 py-2.5 font-semibold text-slate-950 transition hover:bg-green-400"
-        >
-          + Nuova simulazione
-        </Link>
+        <div className="flex gap-2">
+          {completedSims.length >= 2 && (
+            <button
+              onClick={toggleCompareMode}
+              className={`rounded-lg border px-4 py-2.5 font-semibold transition ${
+                compareMode
+                  ? "border-green-500 bg-green-500/10 text-green-400"
+                  : "border-slate-700 text-slate-300 hover:border-slate-500"
+              }`}
+            >
+              {compareMode ? "Annulla confronto" : "Confronta"}
+            </button>
+          )}
+          <Link
+            href="/simulate"
+            className="rounded-lg bg-green-500 px-5 py-2.5 font-semibold text-slate-950 transition hover:bg-green-400"
+          >
+            + Nuova simulazione
+          </Link>
+        </div>
       </div>
 
+      {/* Banner istruzioni modalità confronto */}
+      {compareMode && (
+        <div className="mb-4 flex items-center justify-between rounded-lg border border-green-700 bg-green-950/20 px-4 py-3">
+          <span className="text-sm text-green-300">
+            Seleziona <strong>2 simulazioni</strong> da confrontare ({selected.length}/2)
+          </span>
+          <button
+            disabled={selected.length !== 2}
+            onClick={() => router.push(`/compare?a=${selected[0]}&b=${selected[1]}`)}
+            className="rounded bg-green-500 px-4 py-1.5 text-sm font-semibold text-slate-950 transition hover:bg-green-400 disabled:opacity-40"
+          >
+            Confronta selezionate →
+          </button>
+        </div>
+      )}
+
       {/* Analytics personali */}
-      {analytics && analytics.completed > 0 && (
+      {!compareMode && analytics && analytics.completed > 0 && (
         <section className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <AnalyticCard label="Simulazioni" value={String(analytics.completed)} />
           <AnalyticCard label="Rendimento medio" value={pct(analytics.avg_total_return, true)}
@@ -48,7 +100,7 @@ export default function DashboardPage() {
             value={analytics.benchmark_win_rate === null ? "—" : `${Math.round(analytics.benchmark_win_rate * 100)}%`}
             tone={(analytics.benchmark_win_rate ?? 0) >= 0.5 ? "pos" : undefined} />
           {analytics.best && (
-            <div className="col-span-2 rounded-lg border border-green-900 bg-green-950/20 p-4 sm:col-span-2">
+            <div className="col-span-2 rounded-lg border border-green-900 bg-green-950/20 p-4">
               <div className="text-xs text-slate-400">Migliore simulazione</div>
               <div className="mt-1 flex items-baseline justify-between">
                 <span className="text-sm">{analytics.best.label}</span>
@@ -57,7 +109,7 @@ export default function DashboardPage() {
             </div>
           )}
           {analytics.worst && (
-            <div className="col-span-2 rounded-lg border border-red-900 bg-red-950/20 p-4 sm:col-span-2">
+            <div className="col-span-2 rounded-lg border border-red-900 bg-red-950/20 p-4">
               <div className="text-xs text-slate-400">Peggiore simulazione</div>
               <div className="mt-1 flex items-baseline justify-between">
                 <span className="text-sm">{analytics.worst.label}</span>
@@ -82,6 +134,7 @@ export default function DashboardPage() {
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-900 text-slate-400">
               <tr>
+                {compareMode && <th className="px-4 py-3 w-10"></th>}
                 <th className="px-4 py-3">Periodo</th>
                 <th className="px-4 py-3">Data</th>
                 <th className="px-4 py-3 text-right">Rendimento</th>
@@ -90,31 +143,45 @@ export default function DashboardPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800">
-              {sims.map((s) => (
-                <tr
-                  key={s.id}
-                  onClick={() => router.push(`/results/${s.id}`)}
-                  className="cursor-pointer transition hover:bg-slate-900"
-                >
-                  <td className="px-4 py-3 font-medium">{s.label}</td>
-                  <td className="px-4 py-3 text-slate-400">{formatDate(s.created_at)}</td>
-                  <td className={`px-4 py-3 text-right font-semibold ${
-                    (s.total_return ?? 0) >= 0 ? "text-green-400" : "text-red-400"
-                  }`}>
-                    {pct(s.total_return, true)}
-                  </td>
-                  <td className="px-4 py-3 text-right text-slate-300">{pct(s.cagr)}</td>
-                  <td className="px-4 py-3 text-right">
-                    <span className={`rounded px-2 py-0.5 text-xs ${
-                      s.status === "completed"
-                        ? "bg-green-500/10 text-green-400"
-                        : "bg-red-500/10 text-red-400"
+              {sims.map((s) => {
+                const selectable = compareMode && s.status === "completed";
+                const isSelected = selected.includes(s.id);
+                return (
+                  <tr
+                    key={s.id}
+                    onClick={() => (compareMode ? selectable && toggleSelect(s.id) : handleRowClick(s.id))}
+                    className={`transition ${
+                      compareMode && !selectable
+                        ? "cursor-not-allowed opacity-40"
+                        : "cursor-pointer hover:bg-slate-900"
+                    } ${isSelected ? "bg-green-950/30" : ""}`}
+                  >
+                    {compareMode && (
+                      <td className="px-4 py-3">
+                        <input type="checkbox" readOnly checked={isSelected} disabled={!selectable}
+                          className="h-4 w-4 accent-green-500" />
+                      </td>
+                    )}
+                    <td className="px-4 py-3 font-medium">{s.label}</td>
+                    <td className="px-4 py-3 text-slate-400">{formatDate(s.created_at)}</td>
+                    <td className={`px-4 py-3 text-right font-semibold ${
+                      (s.total_return ?? 0) >= 0 ? "text-green-400" : "text-red-400"
                     }`}>
-                      {s.status === "completed" ? "completata" : "fallita"}
-                    </span>
-                  </td>
-                </tr>
-              ))}
+                      {pct(s.total_return, true)}
+                    </td>
+                    <td className="px-4 py-3 text-right text-slate-300">{pct(s.cagr)}</td>
+                    <td className="px-4 py-3 text-right">
+                      <span className={`rounded px-2 py-0.5 text-xs ${
+                        s.status === "completed"
+                          ? "bg-green-500/10 text-green-400"
+                          : "bg-red-500/10 text-red-400"
+                      }`}>
+                        {s.status === "completed" ? "completata" : "fallita"}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
