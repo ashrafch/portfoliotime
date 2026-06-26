@@ -42,10 +42,24 @@ class SimulationInput:
     benchmark_ticker: str = "SPY"
 
 
+ASSET_KEYS = ["azioni", "bitcoin", "oro", "materie_prime", "obbligazioni"]
+
+
+def normalize_allocation(raw: dict[str, float]) -> dict[str, float]:
+    """Normalizza un'allocazione custom: tiene solo le asset note, porta la somma a 100."""
+    clean = {k: max(0.0, float(raw.get(k, 0.0))) for k in ASSET_KEYS}
+    total = sum(clean.values())
+    if total <= 0:
+        # fallback prudente: 100% obbligazioni
+        return {k: (100.0 if k == "obbligazioni" else 0.0) for k in ASSET_KEYS}
+    return {k: round(v / total * 100.0, 2) for k, v in clean.items()}
+
+
 @dataclass
 class SimulationResult:
     """Risultato calcolato di una simulazione — tutti i valori sono numerici verificati."""
     allocazione: dict[str, float]
+    allocation_source: str  # "chameleon" | "custom"
     cagr: float
     max_drawdown: float
     sharpe_ratio: float
@@ -60,22 +74,35 @@ class SimulationResult:
     warnings: list[str] = field(default_factory=list)
 
 
-def run_simulation(sim_input: SimulationInput, prices: pd.DataFrame) -> SimulationResult:
-    """Esegue la simulazione completa dato il DataFrame dei prezzi storici."""
+def run_simulation(
+    sim_input: SimulationInput,
+    prices: pd.DataFrame,
+    allocation_override: dict[str, float] | None = None,
+) -> SimulationResult:
+    """Esegue la simulazione completa dato il DataFrame dei prezzi storici.
+
+    Se allocation_override è fornito, usa quell'allocazione (normalizzata) invece
+    delle formule Chameleon — per i portafogli personalizzati dall'utente.
+    """
     warnings: list[str] = []
 
-    allocazione = chameleon_portafoglio(
-        eta=sim_input.eta,
-        tasso_fed=sim_input.tasso_fed,
-        delta_tasso=sim_input.delta_tasso,
-        btc_prezzo_corrente=sim_input.btc_prezzo_corrente,
-        btc_ath=sim_input.btc_ath,
-        is_post_halving=sim_input.is_post_halving,
-        tasso_nominale=sim_input.tasso_nominale,
-        inflazione=sim_input.inflazione,
-        tassi_in_calo=sim_input.tassi_in_calo,
-        qe_attivo=sim_input.qe_attivo,
-    )
+    if allocation_override:
+        allocazione = normalize_allocation(allocation_override)
+        allocation_source = "custom"
+    else:
+        allocazione = chameleon_portafoglio(
+            eta=sim_input.eta,
+            tasso_fed=sim_input.tasso_fed,
+            delta_tasso=sim_input.delta_tasso,
+            btc_prezzo_corrente=sim_input.btc_prezzo_corrente,
+            btc_ath=sim_input.btc_ath,
+            is_post_halving=sim_input.is_post_halving,
+            tasso_nominale=sim_input.tasso_nominale,
+            inflazione=sim_input.inflazione,
+            tassi_in_calo=sim_input.tassi_in_calo,
+            qe_attivo=sim_input.qe_attivo,
+        )
+        allocation_source = "chameleon"
 
     portfolio_series = _build_portfolio_series(prices, allocazione, warnings)
 
@@ -83,6 +110,7 @@ def run_simulation(sim_input: SimulationInput, prices: pd.DataFrame) -> Simulati
         warnings.append("Dati di mercato insufficienti per il periodo selezionato.")
         return SimulationResult(
             allocazione=allocazione,
+            allocation_source=allocation_source,
             cagr=float("nan"), max_drawdown=float("nan"),
             sharpe_ratio=float("nan"), annualized_volatility=float("nan"),
             real_return=None, total_return=float("nan"),
@@ -124,6 +152,7 @@ def run_simulation(sim_input: SimulationInput, prices: pd.DataFrame) -> Simulati
 
     return SimulationResult(
         allocazione=allocazione,
+        allocation_source=allocation_source,
         cagr=cagr, max_drawdown=max_dd,
         sharpe_ratio=sharpe, annualized_volatility=volatility,
         real_return=real_ret, total_return=total_ret,

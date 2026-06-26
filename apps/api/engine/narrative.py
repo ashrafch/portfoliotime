@@ -27,19 +27,45 @@ def _num(x: float | None) -> str:
     return f"{x:.2f}"
 
 
-def build_narrative(sim_input: SimulationInput, result: SimulationResult) -> str:
-    """Restituisce una narrativa in italiano. Prova Claude, poi fallback template."""
+def build_narrative(sim_input: SimulationInput, result: SimulationResult, profile=None) -> str:
+    """Restituisce una narrativa in italiano. Prova Claude, poi fallback template.
+
+    profile (InvestorProfile, opzionale) personalizza l'interpretazione.
+    """
     if settings.anthropic_api_key:
         try:
-            return _claude_narrative(sim_input, result)
+            return _claude_narrative(sim_input, result, profile)
         except Exception:  # noqa: BLE001 — fallback robusto se l'API non risponde
             pass
-    return _template_narrative(sim_input, result)
+    return _template_narrative(sim_input, result, profile)
 
 
-def _template_narrative(sim_input: SimulationInput, result: SimulationResult) -> str:
+def _profile_note(profile, result) -> str:
+    """Frase personalizzata sul profilo di rischio dell'utente."""
+    if profile is None:
+        return ""
+    risk = getattr(profile, "risk_profile", None)
+    goal = getattr(profile, "goal", "") or ""
+    if not risk:
+        return ""
+
+    dd = result.max_drawdown
+    note = f" Per un profilo «{risk}»"
+    if risk == "conservativo" and isinstance(dd, float) and not math.isnan(dd) and dd < -0.25:
+        note += ", il drawdown registrato è elevato rispetto alla tua tolleranza al rischio"
+    elif risk == "aggressivo":
+        note += ", questo livello di rischio è in linea con le tue preferenze"
+    else:
+        note += ", il profilo rischio/rendimento appare bilanciato"
+    if goal:
+        note += f"; obiettivo dichiarato: {goal}"
+    return note + "."
+
+
+def _template_narrative(sim_input: SimulationInput, result: SimulationResult, profile=None) -> str:
     alloc = result.allocazione
     top_asset = max(alloc, key=alloc.get) if alloc else "n/d"
+    alloc_kind = "personalizzata" if result.allocation_source == "custom" else "Chameleon"
 
     vs_bench = ""
     if not (isinstance(result.benchmark_total_return, float) and math.isnan(result.benchmark_total_return)):
@@ -60,20 +86,20 @@ def _template_narrative(sim_input: SimulationInput, result: SimulationResult) ->
     regime_txt = (" Contesto: " + ", ".join(regime) + ".") if regime else ""
 
     return (
-        f"Nel periodo {sim_input.date_from} → {sim_input.date_to}, l'allocazione Chameleon "
+        f"Nel periodo {sim_input.date_from} → {sim_input.date_to}, l'allocazione {alloc_kind} "
         f"per un investitore di {sim_input.eta} anni ha prodotto un rendimento totale di "
         f"{_pct(result.total_return)} (CAGR {_pct(result.cagr)}), con una volatilità annualizzata "
         f"del {_pct(result.annualized_volatility)} e un drawdown massimo di {_pct(result.max_drawdown)}. "
         f"Lo Sharpe ratio è {_num(result.sharpe_ratio)} e il rendimento reale (al netto di "
         f"un'inflazione stimata del {sim_input.inflazione:.1f}%) è {_pct(result.real_return)}. "
         f"La componente con peso maggiore è '{top_asset}' ({alloc.get(top_asset, 0):.1f}%)."
-        f"{vs_bench}{regime_txt} "
+        f"{vs_bench}{regime_txt}{_profile_note(profile, result)} "
         f"Nota: tutti i valori sono calcolati dal motore finanziario su dati di mercato reali; "
         f"questa è un'interpretazione, non una raccomandazione d'investimento."
     )
 
 
-def _claude_narrative(sim_input: SimulationInput, result: SimulationResult) -> str:
+def _claude_narrative(sim_input: SimulationInput, result: SimulationResult, profile=None) -> str:
     """Genera la narrativa con Claude passando SOLO numeri già calcolati (R1)."""
     import anthropic
 
@@ -81,6 +107,9 @@ def _claude_narrative(sim_input: SimulationInput, result: SimulationResult) -> s
     facts = {
         "periodo": f"{sim_input.date_from} → {sim_input.date_to}",
         "eta": sim_input.eta,
+        "profilo_rischio": getattr(profile, "risk_profile", None),
+        "obiettivo": getattr(profile, "goal", None),
+        "tipo_allocazione": result.allocation_source,
         "allocazione_pct": result.allocazione,
         "rendimento_totale": result.total_return,
         "cagr": result.cagr,

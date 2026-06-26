@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from config import get_settings
 from database import init_db
 from seed import seed_users
-from routers import simulate, scenarios, portfolio, auth, admin, macro
+from routers import simulate, scenarios, portfolio, auth, admin, macro, me
 
 settings = get_settings()
 
@@ -40,6 +40,7 @@ app.include_router(portfolio.router, prefix="/portfolio", tags=["portfolio"])
 app.include_router(simulate.router, prefix="/simulate", tags=["simulate"])
 app.include_router(scenarios.router, prefix="/scenarios", tags=["scenarios"])
 app.include_router(macro.router, prefix="/macro", tags=["macro"])
+app.include_router(me.router, prefix="/me", tags=["me"])
 
 
 @app.get("/health")

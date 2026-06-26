@@ -30,6 +30,7 @@ export interface EquityPoint {
 
 export interface SimulationResultData {
   allocazione: Allocation;
+  allocation_source?: "chameleon" | "custom";
   cagr: number | null;
   max_drawdown: number | null;
   sharpe_ratio: number | null;
@@ -78,6 +79,37 @@ export interface SimulateRequest {
   date_from: string;
   date_to: string;
   benchmark_ticker: string;
+  custom_allocation?: Allocation | null;
+}
+
+export interface InvestorProfile {
+  eta: number;
+  risk_profile: "conservativo" | "bilanciato" | "aggressivo";
+  base_currency: string;
+  goal: string;
+  default_tasso_fed: number;
+  default_inflazione: number;
+}
+
+export interface PersonalAnalytics {
+  total_simulations: number;
+  completed: number;
+  avg_total_return: number | null;
+  avg_max_drawdown: number | null;
+  avg_sharpe: number | null;
+  best: { label: string; total_return: number; id: string } | null;
+  worst: { label: string; total_return: number; id: string } | null;
+  benchmark_win_rate: number | null;
+}
+
+export interface MacroSuggestion {
+  source: "fred" | "none";
+  tasso_fed: number | null;
+  delta_tasso: number | null;
+  tasso_nominale: number | null;
+  inflazione: number | null;
+  tassi_in_calo: boolean | null;
+  message: string | null;
 }
 
 export interface Scenario {

@@ -20,6 +20,7 @@ from sqlalchemy import select, desc
 from database import get_db
 from models.user import User, UserRole
 from models.portfolio import SimulationRecord
+from models.profile import InvestorProfile
 from security import get_current_user
 from engine.simulator import SimulationInput, run_simulation
 from engine.narrative import build_narrative
@@ -46,6 +47,9 @@ class SimulateRequest(BaseModel):
     date_from: str = Field(..., examples=["2007-01-01"])
     date_to: str = Field(..., examples=["2009-12-31"])
     benchmark_ticker: str = "SPY"
+    # Allocazione personalizzata (opzionale): se presente sostituisce il Chameleon.
+    # Chiavi: azioni, bitcoin, oro, materie_prime, obbligazioni. Somma normalizzata a 100.
+    custom_allocation: Optional[dict[str, float]] = None
 
     @field_validator("date_from", "date_to")
     @classmethod
@@ -118,10 +122,15 @@ async def create_simulation(
             tickers.append("BTC-USD")
 
         # Prezzi con cache TimescaleDB + fallback (affidabilità)
+        # Se l'utente fornisce un'allocazione custom con BTC > 0, includi il ticker
+        if request.custom_allocation and request.custom_allocation.get("bitcoin", 0) > 0:
+            if "BTC-USD" not in tickers:
+                tickers.append("BTC-USD")
+
         prices, cache_warnings, price_sources = await price_repository.get_prices(
             db, tickers, request.date_from, request.date_to
         )
-        result = run_simulation(sim_input, prices)
+        result = run_simulation(sim_input, prices, allocation_override=request.custom_allocation)
 
         # FRED: rendimento reale da inflazione storica reale, se configurato
         real_source = "calculated"
@@ -140,13 +149,18 @@ async def create_simulation(
             except Exception:  # noqa: BLE001
                 pass
 
-        narrative = build_narrative(sim_input, result)
+        # Narrativa personalizzata sul profilo dell'utente
+        profile = (await db.execute(
+            select(InvestorProfile).where(InvestorProfile.user_id == current_user.id)
+        )).scalar_one_or_none()
+        narrative = build_narrative(sim_input, result, profile=profile)
 
         sources = {**result.sources, **price_sources, "real_return": real_source}
         all_warnings = list(result.warnings) + cache_warnings
 
         result_dict = _clean_nan({
             "allocazione": result.allocazione,
+            "allocation_source": result.allocation_source,
             "cagr": result.cagr,
             "max_drawdown": result.max_drawdown,
             "sharpe_ratio": result.sharpe_ratio,

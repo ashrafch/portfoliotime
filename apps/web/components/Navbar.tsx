@@ -17,6 +17,7 @@ export default function Navbar() {
   const links = [
     { href: "/dashboard", label: "Dashboard" },
     { href: "/simulate", label: "Nuova simulazione" },
+    { href: "/profile", label: "Profilo" },
   ];
   if (isSuperAdmin) links.push({ href: "/admin", label: "Admin" });
 
