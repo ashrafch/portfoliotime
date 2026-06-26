@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { apiRequest } from "@/lib/api";
 import { pct } from "@/lib/format";
 import type { RecommendedResult, Allocation } from "@/lib/types";
@@ -90,7 +91,9 @@ export default function RecommendedPage() {
         <button onClick={load} className="rounded border border-slate-700 px-4 py-2 text-sm text-slate-300 hover:border-green-500">
           Ricalcola
         </button>
-        <p className="text-xs text-slate-500">{data.note}</p>
+        <p className="text-xs text-slate-500">
+          {data.note} <Link href="/categorie" className="text-green-400 hover:underline">Cosa scegliere per categoria →</Link>
+        </p>
       </div>
     </div>
   );

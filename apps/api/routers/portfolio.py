@@ -13,9 +13,9 @@ from database import get_db
 from models.user import User
 from models.profile import InvestorProfile
 from security import get_current_user
-from engine.metrics import chameleon_portafoglio
+from engine.metrics import chameleon_portafoglio, calc_cagr
 from engine.simulator import SimulationInput, run_simulation, compute_portfolio_returns, normalize_allocation
-from engine import planning
+from engine import planning, category_guidance
 from data import price_repository, fred_client
 import recommendation
 
@@ -305,6 +305,54 @@ async def recommended(
             "Bitcoin escluso (richiede stato post-halving) e QE non attivo per default. "
             "Fonte macro: " + ("FRED (dati reali)" if source == "fred"
                                else "assunzioni del tuo profilo")
+        ),
+    }
+
+
+@router.get("/category-guidance")
+async def category_guidance_endpoint(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Guida per categoria: ruolo, cosa scegliere, rischi, rendimento storico reale
+    e stima prospettica (onesta: dichiarata non stimabile dove non difendibile).
+    """
+    ref_from, ref_to = planning.REFERENCE_PERIOD
+    prices, _, _ = await price_repository.get_prices(db, list(ASSET_TO_TICKER.values()), ref_from, ref_to)
+
+    historical = {}
+    for asset, tk in ASSET_TO_TICKER.items():
+        s = prices.get(tk)
+        h = calc_cagr(s) if s is not None else float("nan")
+        historical[asset] = None if (h is None or math.isnan(h)) else round(float(h), 4)
+
+    risk_free = None
+    if fred_client.is_configured():
+        try:
+            risk_free = await fred_client.latest_10y_yield()
+        except Exception:  # noqa: BLE001
+            risk_free = None
+
+    items = []
+    for asset in category_guidance.ASSET_ORDER:
+        g = category_guidance.GUIDANCE[asset]
+        items.append({
+            "asset": asset,
+            "label": g["label"],
+            "role": g["role"],
+            "what_to_choose": g["what_to_choose"],
+            "risks": g["risks"],
+            "historical_annual": historical.get(asset),
+            "forward": category_guidance.forward_estimate(asset, risk_free),
+        })
+
+    return {
+        "categories": items,
+        "risk_free": risk_free,
+        "reference_period": {"from": ref_from, "to": ref_to},
+        "note": (
+            "Storico = rendimento annuo reale del periodo di riferimento (non una promessa). "
+            "Prospettico = stima difendibile dove possibile, altrimenti dichiarato non stimabile."
         ),
     }
 

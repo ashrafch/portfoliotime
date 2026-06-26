@@ -140,6 +140,19 @@ class TestAdvice:
         assert d["glide"]["start_equity"] > d["glide"]["end_equity"]
         assert "rischio si riduce" in d["explanations"]["mix"]
 
+    async def test_category_guidance(self, client, user_headers):
+        r = await client.get("/portfolio/category-guidance", headers=user_headers)
+        assert r.status_code == 200
+        d = r.json()
+        assert len(d["categories"]) == 5
+        by = {c["asset"]: c for c in d["categories"]}
+        # oro/materie/bitcoin: prospettico NON stimabile (onestà)
+        for a in ("oro", "materie_prime", "bitcoin"):
+            assert by[a]["forward"]["estimable"] is False
+        # ogni categoria ha guida e storico (numero o None)
+        for c in d["categories"]:
+            assert c["role"] and c["what_to_choose"] and c["risks"]
+
     async def test_allocation_presets(self, client, user_headers):
         r = await client.get("/portfolio/allocation-presets", headers=user_headers)
         assert r.status_code == 200

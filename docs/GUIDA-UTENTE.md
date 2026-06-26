@@ -104,6 +104,9 @@ C'è anche un'opzione **"Riduci il rischio avvicinandoti all'obiettivo"** (glide
 
 > ⚠️ Onestà: è uno strumento educativo basato su dati storici reali, **non una consulenza finanziaria personalizzata**. I risultati passati non garantiscono quelli futuri.
 
+### Guida alle categorie
+La pagina **Categorie** spiega, per azioni, obbligazioni, oro, materie prime e Bitcoin: a cosa servono, **cosa guardare per scegliere**, i rischi, il rendimento storico reale e una **stima prospettica onesta**. Per le obbligazioni la stima si basa sul rendimento attuale (yield); per le azioni sul tasso privo di rischio più un premio storico; per **oro, materie prime e Bitcoin diciamo chiaramente che non è stimabile** (non hanno cedole né utili). Le stesse spiegazioni si aprono direttamente nel piano, cliccando *"perché?"* accanto a ogni categoria.
+
 ### Il mio portafoglio (stress test)
 Inserisci quanto possiedi per categoria (azioni, obbligazioni, oro, ecc.) e premi **Stress test**: vedi come il *tuo* portafoglio avrebbe retto nelle crisi vere (2008, COVID, 2022, dot-com), con rendimento, caduta peggiore e valore finale per ciascuna.
 

@@ -17,6 +17,7 @@ export default function Navbar() {
   const links = [
     { href: "/dashboard", label: "Dashboard" },
     { href: "/plan", label: "Il tuo piano" },
+    { href: "/categorie", label: "Categorie" },
     { href: "/simulate", label: "Simula" },
     { href: "/stress-test", label: "Portafoglio" },
     { href: "/profile", label: "Profilo" },

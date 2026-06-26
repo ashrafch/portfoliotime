@@ -234,6 +234,7 @@ I NaN vengono convertiti in `null` prima del salvataggio JSON (`_clean_nan`).
 | GET | `/portfolio/recommended` | sì | allocazione consigliata "oggi" + cambiamenti vs ultimo calcolo |
 | POST | `/portfolio/advice` | sì | piano unico: allocazione concreta + probabilità + spiegazioni (+ `glide_path` opzionale) |
 | GET | `/portfolio/allocation-presets` | sì | allocazioni pronte (strategica del profilo + consigliata oggi) per Simula |
+| GET | `/portfolio/category-guidance` | sì | guida per categoria: ruolo, cosa scegliere, rischi, storico reale, stima prospettica |
 | GET | `/scenarios` | — | elenco scenari storici |
 | GET | `/scenarios/events` | — | eventi macro reali nel range `date_from..date_to` |
 | POST | `/simulate` | sì | esegue + salva una simulazione |

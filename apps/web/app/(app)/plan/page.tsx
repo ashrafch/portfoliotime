@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { apiRequest } from "@/lib/api";
 import { pct, money } from "@/lib/format";
-import type { AdviceResult, InvestorProfile } from "@/lib/types";
+import type { AdviceResult, InvestorProfile, CategoryGuidance, CategoryGuidanceItem } from "@/lib/types";
 
 const COLORS: Record<string, string> = {
   azioni: "bg-green-500", obbligazioni: "bg-blue-500", oro: "bg-yellow-500",
@@ -23,12 +23,17 @@ export default function PlanPage() {
   });
   const [currency, setCurrency] = useState("EUR");
   const [result, setResult] = useState<AdviceResult | null>(null);
+  const [guidance, setGuidance] = useState<Record<string, CategoryGuidanceItem>>({});
+  const [openAsset, setOpenAsset] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     apiRequest<InvestorProfile>("/me/profile")
       .then((p) => { setCurrency(p.base_currency); setForm((f) => ({ ...f, risk_profile: p.risk_profile })); })
+      .catch(() => {});
+    apiRequest<CategoryGuidance>("/portfolio/category-guidance")
+      .then((g) => setGuidance(Object.fromEntries(g.categories.map((c) => [c.asset, c]))))
       .catch(() => {});
   }, []);
 
@@ -192,31 +197,65 @@ export default function PlanPage() {
               {result.composition.months > 0 && <span className="w-24 shrink-0 text-right">Ogni mese</span>}
             </div>
             <div className="space-y-3">
-              {result.breakdown.map((b) => (
-                <div key={b.asset} className="flex items-center gap-3">
-                  <div className="w-40 shrink-0">
-                    <div className="text-sm font-medium">{LABELS[b.asset] ?? b.asset} <span className="text-xs text-slate-500">{b.weight_pct}%</span></div>
-                    <div className="text-[11px] text-slate-500">{b.instrument}</div>
-                    {b.examples?.length > 0 && (
-                      <div className="text-[11px] text-slate-600"
-                        title={b.examples.map((e) => `${e.name} (${e.ticker}${e.dist !== "—" ? ", " + e.dist : ""})`).join(" · ")}>
-                        Es: {b.examples.slice(0, 2).map((e) =>
-                          e.ticker !== "—" ? `${e.ticker}${e.dist !== "—" ? " " + e.dist : ""}` : e.name
-                        ).join(" · ")}
+              {result.breakdown.map((b) => {
+                const g = guidance[b.asset];
+                const open = openAsset === b.asset;
+                return (
+                  <div key={b.asset}>
+                    <div className="flex items-center gap-3">
+                      <div className="w-40 shrink-0">
+                        <div className="text-sm font-medium">
+                          {LABELS[b.asset] ?? b.asset} <span className="text-xs text-slate-500">{b.weight_pct}%</span>
+                          {g && (
+                            <button type="button" onClick={() => setOpenAsset(open ? null : b.asset)}
+                              className="ml-1 text-[11px] text-green-400 hover:underline">{open ? "nascondi" : "perché?"}</button>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-slate-500">{b.instrument}</div>
+                        {b.examples?.length > 0 && (
+                          <div className="text-[11px] text-slate-600"
+                            title={b.examples.map((e) => `${e.name} (${e.ticker}${e.dist !== "—" ? ", " + e.dist : ""})`).join(" · ")}>
+                            Es: {b.examples.slice(0, 2).map((e) =>
+                              e.ticker !== "—" ? `${e.ticker}${e.dist !== "—" ? " " + e.dist : ""}` : e.name
+                            ).join(" · ")}
+                          </div>
+                        )}
+                      </div>
+                      <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-800">
+                        <div className={`h-full ${COLORS[b.asset] ?? "bg-slate-500"}`} style={{ width: `${Math.min(b.weight_pct, 100)}%` }} />
+                      </div>
+                      {result.composition.initial > 0 && (
+                        <span className="w-24 shrink-0 text-right font-semibold">{money(b.amount_initial, currency)}</span>
+                      )}
+                      {result.composition.months > 0 && (
+                        <span className="w-24 shrink-0 text-right font-semibold text-slate-300">{money(b.amount_monthly, currency)}</span>
+                      )}
+                    </div>
+
+                    {open && g && (
+                      <div className="mt-2 rounded-lg border border-slate-800 bg-slate-900/40 p-3 text-xs">
+                        <p className="mb-2 text-slate-300">{g.role}</p>
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                          <div>
+                            <div className="mb-1 font-semibold text-green-400">Cosa scegliere</div>
+                            <ul className="space-y-0.5 text-slate-400">{g.what_to_choose.map((w, i) => <li key={i}>• {w}</li>)}</ul>
+                          </div>
+                          <div>
+                            <div className="mb-1 font-semibold text-amber-400">Rischi</div>
+                            <ul className="space-y-0.5 text-slate-400">{g.risks.map((w, i) => <li key={i}>• {w}</li>)}</ul>
+                          </div>
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-3 text-slate-500">
+                          <span>Storico: <strong className="text-slate-300">{pct(g.historical_annual)}/anno</strong></span>
+                          <span>Prospettico: <strong className={g.forward.estimable ? "text-green-400" : "text-slate-400"}>
+                            {g.forward.estimable ? `${pct(g.forward.value)}/anno` : "non stimabile"}</strong>
+                            {" "}<span className="text-slate-600">({g.forward.method})</span></span>
+                        </div>
                       </div>
                     )}
                   </div>
-                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-800">
-                    <div className={`h-full ${COLORS[b.asset] ?? "bg-slate-500"}`} style={{ width: `${Math.min(b.weight_pct, 100)}%` }} />
-                  </div>
-                  {result.composition.initial > 0 && (
-                    <span className="w-24 shrink-0 text-right font-semibold">{money(b.amount_initial, currency)}</span>
-                  )}
-                  {result.composition.months > 0 && (
-                    <span className="w-24 shrink-0 text-right font-semibold text-slate-300">{money(b.amount_monthly, currency)}</span>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* composizione del totale versato */}
@@ -236,6 +275,7 @@ export default function PlanPage() {
             <p className="mt-2 text-[11px] text-slate-500">
               ℹ️ Esempi ordinati per la tua preferenza: <strong>{result.instruments_pref.dividend_preference}</strong>
               {" "}· {result.instruments_pref.country}. {result.instruments_note}
+              {" "}<Link href="/categorie" className="text-green-400 hover:underline">Guida alle categorie →</Link>
             </p>
           </section>
 

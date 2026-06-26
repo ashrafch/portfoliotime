@@ -90,6 +90,22 @@ async def period_inflation_total(date_from: str, date_to: str) -> float | None:
     return end / start - 1.0
 
 
+async def latest_10y_yield() -> float | None:
+    """Rendimento corrente del Treasury USA a 10 anni (GS10), in decimale (es. 0.04).
+
+    Proxy del tasso privo di rischio per le stime prospettiche. None se FRED non
+    è configurato o i dati mancano.
+    """
+    if not is_configured():
+        return None
+    from datetime import date, timedelta
+    today = date.today()
+    series = await fetch_10y_treasury((today - timedelta(days=400)).isoformat(), today.isoformat())
+    if series is None or len(series) == 0:
+        return None
+    return round(float(series.iloc[-1]) / 100.0, 4)
+
+
 async def macro_snapshot(date_from: str, date_to: str) -> dict | None:
     """Snapshot macro reale per pre-compilare la simulazione.
 

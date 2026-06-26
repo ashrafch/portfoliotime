@@ -143,6 +143,23 @@ export interface AdviceResult {
   disclaimer: string;
 }
 
+export interface CategoryGuidanceItem {
+  asset: string;
+  label: string;
+  role: string;
+  what_to_choose: string[];
+  risks: string[];
+  historical_annual: number | null;
+  forward: { value: number | null; method: string; estimable: boolean };
+}
+
+export interface CategoryGuidance {
+  categories: CategoryGuidanceItem[];
+  risk_free: number | null;
+  reference_period: { from: string; to: string };
+  note: string;
+}
+
 export interface AllocationPresets {
   strategic: Allocation;
   strategic_risk: string;
