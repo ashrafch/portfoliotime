@@ -1,9 +1,10 @@
+import asyncio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from config import get_settings
-from database import init_db
+from migrations import run_migrations
 from seed import seed_users
 from routers import simulate, scenarios, portfolio, auth, admin, macro, me
 
@@ -12,8 +13,9 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: crea le tabelle e popola gli utenti seed (idempotente)
-    await init_db()
+    # Startup: allinea lo schema via Alembic (in un thread, runner sincrono),
+    # poi popola gli utenti seed (idempotente).
+    await asyncio.get_event_loop().run_in_executor(None, run_migrations)
     await seed_users()
     yield
     # Shutdown: niente da fare
