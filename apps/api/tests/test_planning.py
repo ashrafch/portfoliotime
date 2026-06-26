@@ -58,6 +58,29 @@ class TestRequiredContribution:
         assert c == 0.0
 
 
+class TestGlidePath:
+    def test_glide_riduce_variabilita_finale(self):
+        # allocazione "inizio" volatile, "fine" tranquilla → il glide deve ridurre
+        # la dispersione degli esiti rispetto al solo inizio volatile
+        rng = np.random.default_rng(3)
+        r_start = pd.Series(rng.normal(0.0004, 0.015, 2000))  # volatile
+        r_end = pd.Series(rng.normal(0.0002, 0.003, 2000))    # tranquilla
+
+        base = project_goal(r_start, 10, 10000, 200, 50000, seed=5)
+        glide = project_goal(r_start, 10, 10000, 200, 50000, seed=5, returns_end=r_end)
+
+        spread_base = base["final_value"]["p90"] - base["final_value"]["p10"]
+        spread_glide = glide["final_value"]["p90"] - glide["final_value"]["p10"]
+        assert spread_glide < spread_base  # meno incertezza con il glide
+
+    def test_glide_struttura_ok(self):
+        r_start = _positive_drift_returns()
+        r_end = _positive_drift_returns(mu=0.0002, sigma=0.003, seed=9)
+        out = project_goal(r_start, 12, 5000, 150, 40000, returns_end=r_end)
+        assert 0.0 <= out["probability_success"] <= 1.0
+        assert out["final_value"]["p10"] <= out["final_value"]["p90"]
+
+
 class TestReference:
     def test_allocazioni_sommano_100(self):
         for profile, alloc in REFERENCE_ALLOCATIONS.items():

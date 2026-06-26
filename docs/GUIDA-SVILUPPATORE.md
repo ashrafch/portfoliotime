@@ -232,7 +232,7 @@ I NaN vengono convertiti in `null` prima del salvataggio JSON (`_clean_nan`).
 | POST | `/portfolio/stress-test` | sì | testa il portafoglio posseduto contro crisi storiche |
 | POST | `/portfolio/goal-plan` | sì | proiezione goal-based + versamento necessario |
 | GET | `/portfolio/recommended` | sì | allocazione consigliata "oggi" + cambiamenti vs ultimo calcolo |
-| POST | `/portfolio/advice` | sì | piano unico: allocazione concreta (importi iniziale+mensile) + probabilità + spiegazioni |
+| POST | `/portfolio/advice` | sì | piano unico: allocazione concreta + probabilità + spiegazioni (+ `glide_path` opzionale) |
 | GET | `/portfolio/allocation-presets` | sì | allocazioni pronte (strategica del profilo + consigliata oggi) per Simula |
 | GET | `/scenarios` | — | elenco scenari storici |
 | GET | `/scenarios/events` | — | eventi macro reali nel range `date_from..date_to` |

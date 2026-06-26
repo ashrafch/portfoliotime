@@ -98,6 +98,8 @@ Puoi scegliere la base del consiglio:
 - **Strategica** — un mix stabile legato al tuo profilo di rischio (consigliata per il lungo termine);
 - **Chameleon** — i pesi calcolati dal modello sulla situazione economica di oggi.
 
+C'è anche un'opzione **"Riduci il rischio avvicinandoti all'obiettivo"** (glide path): se attiva, col passare degli anni il piano sposta gradualmente da azioni a obbligazioni, per proteggere i guadagni quando l'obiettivo è vicino. Nel risultato vedi *"azioni 75% oggi → 30% all'obiettivo"*.
+
 > ⚠️ Onestà: è uno strumento educativo basato su dati storici reali, **non una consulenza finanziaria personalizzata**. I risultati passati non garantiscono quelli futuri.
 
 ### Il mio portafoglio (stress test)

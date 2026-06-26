@@ -19,6 +19,7 @@ export default function PlanPage() {
   const [form, setForm] = useState({
     initial_capital: 10000, monthly_contribution: 300, horizon_years: 15,
     target: 100000, risk_profile: "bilanciato", basis: "strategic" as "strategic" | "chameleon",
+    glide_path: false,
   });
   const [currency, setCurrency] = useState("EUR");
   const [result, setResult] = useState<AdviceResult | null>(null);
@@ -122,6 +123,18 @@ export default function PlanPage() {
             Chameleon (macro di oggi)
           </button>
         </div>
+
+        {/* Glide path: una sola spunta, spiegata in una frase */}
+        <label className="mt-4 flex items-start gap-2 text-sm">
+          <input type="checkbox" checked={form.glide_path}
+            onChange={(e) => up("glide_path", e.target.checked)} className="mt-0.5 h-4 w-4" />
+          <span>
+            Riduci il rischio avvicinandoti all&apos;obiettivo
+            <span className="block text-xs text-slate-500">
+              Col passare degli anni sposta gradualmente da azioni a obbligazioni, per proteggere i guadagni quando l&apos;obiettivo è vicino.
+            </span>
+          </span>
+        </label>
       </section>
 
       {error && <div className="mb-6 rounded bg-red-950 px-4 py-3 text-sm text-red-400">{error}</div>}
@@ -154,6 +167,11 @@ export default function PlanPage() {
           {/* Cosa investire — la ripartizione concreta */}
           <section className="mb-6 rounded-lg border border-slate-800 p-6">
             <h2 className="mb-1 text-lg font-semibold">Come ripartire</h2>
+            {result.glide.enabled && result.glide.end_equity !== null && (
+              <div className="mb-2 inline-block rounded-full border border-blue-700 bg-blue-950/30 px-3 py-1 text-xs text-blue-300">
+                Rischio in calo nel tempo: azioni {result.glide.start_equity}% oggi → {result.glide.end_equity}% all&apos;obiettivo
+              </div>
+            )}
             <p className="mb-3 text-sm text-slate-400">{result.explanations.mix}</p>
             <p className="mb-4 text-xs text-slate-500">
               {result.composition.initial > 0 && result.composition.months > 0

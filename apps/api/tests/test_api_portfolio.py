@@ -113,6 +113,15 @@ class TestAdvice:
         assert d["composition"]["initial"] == 0
         assert d["composition"]["monthly_total"] > 0
 
+    async def test_advice_glide_path(self, client, user_headers):
+        body = {"initial_capital": 10000, "monthly_contribution": 200, "horizon_years": 20,
+                "target": 200000, "risk_profile": "aggressivo", "glide_path": True}
+        d = (await client.post("/portfolio/advice", headers=user_headers, json=body)).json()
+        assert d["glide"]["enabled"] is True
+        # parte più aggressivo (più azioni) e finisce più prudente (meno azioni)
+        assert d["glide"]["start_equity"] > d["glide"]["end_equity"]
+        assert "rischio si riduce" in d["explanations"]["mix"]
+
     async def test_allocation_presets(self, client, user_headers):
         r = await client.get("/portfolio/allocation-presets", headers=user_headers)
         assert r.status_code == 200

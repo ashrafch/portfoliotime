@@ -124,6 +124,7 @@ export interface AdviceResult {
     amount_now: number; amount_initial: number; amount_monthly: number;
   }[];
   composition: { initial: number; monthly_total: number; total: number; initial_share: number; months: number };
+  glide: { enabled: boolean; start_equity: number; end_equity: number | null };
   reference_period: { from: string; to: string };
   reference_stats: { annual_return: number | null; annual_volatility: number | null };
   projection: {

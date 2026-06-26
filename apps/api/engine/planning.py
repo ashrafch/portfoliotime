@@ -36,15 +36,20 @@ def project_goal(
     target: float,
     n_sims: int = 500,
     seed: int = 42,
+    returns_end: Optional[pd.Series] = None,
 ) -> dict:
     """Proietta forward un piano con versamenti mensili e stima la probabilità di
     raggiungere `target`.
+
+    Se `returns_end` è fornito, applica un glide path: l'allocazione passa
+    gradualmente da quella iniziale (daily_returns) a quella finale (returns_end)
+    lungo l'orizzonte — più prudente avvicinandosi all'obiettivo.
 
     Returns: dict con probabilità di successo, percentili del valore finale,
     totale versato e statistiche del riferimento.
     """
     finals, total_contributed = _simulate_finals(
-        daily_returns, horizon_years, initial, monthly_contribution, n_sims, seed
+        daily_returns, horizon_years, initial, monthly_contribution, n_sims, seed, returns_end
     )
     if finals is None:
         return {"error": "Dati di riferimento insufficienti."}
@@ -71,6 +76,7 @@ def required_monthly_contribution(
     success_threshold: float = 0.75,
     n_sims: int = 400,
     seed: int = 42,
+    returns_end: Optional[pd.Series] = None,
 ) -> Optional[float]:
     """Cerca (ricerca binaria) il versamento mensile per raggiungere `target` con
     probabilità >= success_threshold. None se i dati sono insufficienti.
@@ -82,7 +88,7 @@ def required_monthly_contribution(
         return None
 
     def prob(c: float) -> float:
-        finals, _ = _simulate_finals(daily_returns, horizon_years, initial, c, n_sims, seed)
+        finals, _ = _simulate_finals(daily_returns, horizon_years, initial, c, n_sims, seed, returns_end)
         return float((finals >= target).mean()) if finals is not None else 0.0
 
     # Se il solo capitale iniziale basta già, contributo richiesto = 0
@@ -114,16 +120,33 @@ def _simulate_finals(
     monthly_contribution: float,
     n_sims: int,
     seed: int,
+    returns_end: Optional[pd.Series] = None,
 ) -> tuple[Optional[np.ndarray], float]:
-    """Genera la distribuzione dei valori finali (bootstrap forward, versamenti mensili)."""
+    """Genera la distribuzione dei valori finali (bootstrap forward, versamenti mensili).
+
+    Con `returns_end`, ogni giorno t mescola il rendimento dell'allocazione iniziale
+    e finale con peso f=t/durata (glide path): rendimento_giorno = (1-f)*r_inizio + f*r_fine,
+    valutati sullo STESSO giorno di mercato campionato (corretto).
+    """
     r = daily_returns.dropna().to_numpy()
     n = len(r)
+    re = None
+    if returns_end is not None:
+        re = returns_end.dropna().to_numpy()
+        n = min(n, len(re))
+        r = r[:n]
+        re = re[:n]
     if n < 60:
         return None, 0.0
 
     days = max(int(horizon_years * TRADING_DAYS_YEAR), TRADING_DAYS_MONTH)
     rng = np.random.default_rng(seed)
-    sampled = r[rng.integers(0, n, size=(n_sims, days))]
+    idx = rng.integers(0, n, size=(n_sims, days))
+    if re is None:
+        sampled = r[idx]
+    else:
+        f = np.linspace(0.0, 1.0, days)[None, :]  # peso del glide per giorno
+        sampled = (1.0 - f) * r[idx] + f * re[idx]
     g = np.cumprod(1.0 + sampled, axis=1)  # fattore di crescita cumulato (n_sims, days)
     g_end = g[:, -1]
 

@@ -311,6 +311,7 @@ class AdviceRequest(BaseModel):
     target: Optional[float] = Field(None, gt=0)
     risk_profile: Optional[str] = None
     basis: str = "strategic"  # strategic (in base al rischio) | chameleon (macro oggi)
+    glide_path: bool = False   # riduci gradualmente il rischio avvicinandoti all'obiettivo
 
 
 @router.post("/advice")
@@ -343,11 +344,18 @@ async def advice(
         is_post_halving=False, tasso_nominale=0, inflazione=0, tassi_in_calo=False,
         qe_attivo=False, date_from=ref_from, date_to=ref_to,
     )
-    tickers = _tickers_for_weights(allocation)
-    prices, _, _ = await price_repository.get_prices(db, tickers, ref_from, ref_to)
+    # Glide path: l'allocazione finale (più prudente) è la "conservativa"
+    end_alloc = planning.REFERENCE_ALLOCATIONS["conservativo"] if request.glide_path else None
+
+    tickers = set(_tickers_for_weights(allocation))
+    if end_alloc:
+        tickers |= set(_tickers_for_weights(end_alloc))
+    prices, _, _ = await price_repository.get_prices(db, sorted(tickers), ref_from, ref_to)
+
     returns = compute_portfolio_returns(sim_input, prices, allocation_override=allocation)
     if returns is None or len(returns) < 60:
         raise HTTPException(status_code=422, detail="Dati di riferimento insufficienti.")
+    returns_end = compute_portfolio_returns(sim_input, prices, allocation_override=end_alloc) if end_alloc else None
 
     # Ripartizione concreta per categoria: vale sia per il capitale iniziale sia
     # per OGNI versamento mensile (stesse percentuali). Così è utile anche con
@@ -368,7 +376,7 @@ async def advice(
 
     projection = planning.project_goal(
         returns, request.horizon_years, request.initial_capital,
-        request.monthly_contribution, request.target or 0.0,
+        request.monthly_contribution, request.target or 0.0, returns_end=returns_end,
     )
     stats = planning.reference_stats(returns)
     required = None
@@ -376,6 +384,7 @@ async def advice(
     if request.target:
         required = planning.required_monthly_contribution(
             returns, request.horizon_years, request.initial_capital, request.target,
+            returns_end=returns_end,
         )
         p = round(projection["probability_success"] * 100)
         prob_txt = (
@@ -384,8 +393,15 @@ async def advice(
         )
 
     fv = projection["final_value"]
+    mix_txt = _explain_mix(risk, request.basis)
+    if request.glide_path and end_alloc:
+        mix_txt += (
+            f" Col tempo il rischio si riduce: la quota azioni passa gradualmente "
+            f"da circa {allocation.get('azioni', 0):.0f}% a {end_alloc['azioni']:.0f}% "
+            f"avvicinandoti all'obiettivo."
+        )
     explanations = {
-        "mix": _explain_mix(risk, request.basis),
+        "mix": mix_txt,
         "probability": prob_txt,
         "scenarios": (
             f"Nello scenario sfavorevole arriveresti a circa {fv['p10']:,.0f}, "
@@ -410,6 +426,11 @@ async def advice(
         "allocation": allocation,
         "breakdown": breakdown,
         "composition": composition,
+        "glide": {
+            "enabled": request.glide_path,
+            "start_equity": round(float(allocation.get("azioni", 0)), 1),
+            "end_equity": round(float(end_alloc["azioni"]), 1) if end_alloc else None,
+        },
         "reference_period": {"from": ref_from, "to": ref_to},
         "reference_stats": stats,
         "projection": projection,
