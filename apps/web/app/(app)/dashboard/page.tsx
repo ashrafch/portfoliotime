@@ -6,18 +6,20 @@ import { useRouter } from "next/navigation";
 import { apiRequest } from "@/lib/api";
 import { pct, num, formatDate } from "@/lib/format";
 import { useAuth } from "@/lib/auth";
-import type { SimulationSummary, PersonalAnalytics } from "@/lib/types";
+import type { SimulationSummary, PersonalAnalytics, NotificationsResult } from "@/lib/types";
 
 export default function DashboardPage() {
   const { user } = useAuth();
   const [sims, setSims] = useState<SimulationSummary[]>([]);
   const [analytics, setAnalytics] = useState<PersonalAnalytics | null>(null);
+  const [notif, setNotif] = useState<NotificationsResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [compareMode, setCompareMode] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const router = useRouter();
 
   useEffect(() => {
+    apiRequest<NotificationsResult>("/me/notifications").then(setNotif).catch(() => {});
     Promise.all([
       apiRequest<SimulationSummary[]>("/simulate").then(setSims).catch(() => setSims([])),
       apiRequest<PersonalAnalytics>("/me/analytics").then(setAnalytics).catch(() => setAnalytics(null)),
@@ -72,6 +74,16 @@ export default function DashboardPage() {
           </Link>
         </div>
       </div>
+
+      {/* Notifica: allocazione consigliata cambiata */}
+      {notif?.has_changes && !compareMode && (
+        <Link href="/recommended"
+          className="mb-4 flex items-center justify-between rounded-lg border border-amber-700 bg-amber-950/20 px-4 py-3 transition hover:border-amber-500">
+          <span className="text-sm text-amber-300">
+            🔔 La tua allocazione consigliata è cambiata ({notif.changes.length} modifiche). Vedi cosa è cambiato →
+          </span>
+        </Link>
+      )}
 
       {/* Banner istruzioni modalità confronto */}
       {compareMode && (

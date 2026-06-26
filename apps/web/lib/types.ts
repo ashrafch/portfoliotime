@@ -114,6 +114,34 @@ export interface GoalPlanResult {
   disclaimer: string;
 }
 
+export interface AdviceResult {
+  basis: "strategic" | "chameleon";
+  risk_profile: string;
+  allocation_source: string;
+  allocation: Allocation;
+  breakdown: { asset: string; instrument: string; weight_pct: number; amount_now: number }[];
+  reference_period: { from: string; to: string };
+  reference_stats: { annual_return: number | null; annual_volatility: number | null };
+  projection: {
+    probability_success: number;
+    final_value: { p10: number; p50: number; p90: number };
+    total_contributed: number;
+    target: number;
+    horizon_years: number;
+    monthly_contribution: number;
+  };
+  required_monthly_contribution: number | null;
+  explanations: { mix: string; probability: string; scenarios: string };
+  disclaimer: string;
+}
+
+export interface NotificationsResult {
+  has_changes: boolean;
+  changes: { asset: string; da: number; a: number }[];
+  source: "fred" | "profilo";
+  last_checked: string | null;
+}
+
 export interface RecommendedResult {
   allocazione: Allocation;
   source: "fred" | "profilo";

@@ -13,6 +13,7 @@ from models.user import User
 from models.profile import InvestorProfile
 from models.portfolio import SimulationRecord
 from security import get_current_user
+import recommendation
 
 router = APIRouter()
 
@@ -94,6 +95,34 @@ class AnalyticsResponse(BaseModel):
     best: Optional[dict] = None
     worst: Optional[dict] = None
     benchmark_win_rate: Optional[float] = None  # % simulazioni che battono il benchmark
+
+
+class NotificationsResponse(BaseModel):
+    has_changes: bool
+    changes: list[dict]
+    source: str
+    last_checked: Optional[str] = None
+
+
+@router.get("/notifications", response_model=NotificationsResponse)
+async def notifications(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Segnala se l'allocazione consigliata è cambiata dall'ultima volta che l'hai vista.
+
+    Non salva nulla: lo snapshot si aggiorna quando apri la pagina 'Oggi'
+    (GET /portfolio/recommended).
+    """
+    profile = await _get_or_create_profile(db, current_user.id)
+    rec = await recommendation.current_recommendation(profile)
+    changes = recommendation.diff_allocations(profile.last_recommended, rec["allocazione"])
+    return NotificationsResponse(
+        has_changes=bool(changes),
+        changes=changes,
+        source=rec["source"],
+        last_checked=profile.last_recommended_at.isoformat() if profile.last_recommended_at else None,
+    )
 
 
 @router.get("/analytics", response_model=AnalyticsResponse)

@@ -66,3 +66,56 @@ class TestRecommended:
     async def test_recommended_requires_auth(self, client):
         r = await client.get("/portfolio/recommended")
         assert r.status_code == 401
+
+
+class TestAdvice:
+    async def test_advice_struttura(self, client, user_headers):
+        body = {"initial_capital": 10000, "monthly_contribution": 300,
+                "horizon_years": 15, "target": 100000, "risk_profile": "bilanciato"}
+        r = await client.post("/portfolio/advice", headers=user_headers, json=body)
+        assert r.status_code == 200
+        d = r.json()
+        assert d["allocation"] is not None
+        assert d["breakdown"] and all("amount_now" in b and "instrument" in b for b in d["breakdown"])
+        # la somma degli importi ~ capitale iniziale
+        tot = sum(b["amount_now"] for b in d["breakdown"])
+        assert tot == pytest.approx(10000, abs=1.0)
+        assert 0.0 <= d["projection"]["probability_success"] <= 1.0
+        assert d["explanations"]["mix"] and d["explanations"]["probability"]
+        assert "consulenza" in d["disclaimer"].lower()
+
+    async def test_advice_senza_target(self, client, user_headers):
+        body = {"initial_capital": 5000, "monthly_contribution": 100, "horizon_years": 10}
+        r = await client.post("/portfolio/advice", headers=user_headers, json=body)
+        assert r.status_code == 200
+        d = r.json()
+        assert d["required_monthly_contribution"] is None  # nessun target → nessun calcolo
+        assert d["projection"]["final_value"]["p50"] is not None
+
+    async def test_advice_basis_chameleon(self, client, user_headers):
+        body = {"initial_capital": 10000, "monthly_contribution": 0,
+                "horizon_years": 10, "basis": "chameleon"}
+        r = await client.post("/portfolio/advice", headers=user_headers, json=body)
+        assert r.status_code == 200
+        assert r.json()["basis"] == "chameleon"
+
+    async def test_advice_requires_auth(self, client):
+        r = await client.post("/portfolio/advice", json={"horizon_years": 10})
+        assert r.status_code == 401
+
+
+class TestNotifications:
+    async def test_no_changes_initially(self, client, user_headers):
+        r = await client.get("/me/notifications", headers=user_headers)
+        assert r.status_code == 200
+        assert r.json()["has_changes"] is False
+
+    async def test_detects_change_after_profile_update(self, client, user_headers):
+        # segna come visto
+        await client.get("/portfolio/recommended", headers=user_headers)
+        # cambia assunzione macro → l'allocazione cambia
+        await client.put("/me/profile", headers=user_headers, json={"default_tasso_fed": 0.5})
+        r = await client.get("/me/notifications", headers=user_headers)
+        d = r.json()
+        assert d["has_changes"] is True
+        assert len(d["changes"]) > 0

@@ -227,10 +227,12 @@ I NaN vengono convertiti in `null` prima del salvataggio JSON (`_clean_nan`).
 | GET | `/auth/me` | sì | profilo dell'utente autenticato |
 | GET/PUT | `/me/profile` | sì | profilo investitore (auto-creato) |
 | GET | `/me/analytics` | sì | aggregati sullo storico personale |
+| GET | `/me/notifications` | sì | rileva se l'allocazione consigliata è cambiata (no salvataggio) |
 | POST | `/portfolio/allocation` | sì | anteprima allocazione (no dati di mercato) |
 | POST | `/portfolio/stress-test` | sì | testa il portafoglio posseduto contro crisi storiche |
 | POST | `/portfolio/goal-plan` | sì | proiezione goal-based + versamento necessario |
 | GET | `/portfolio/recommended` | sì | allocazione consigliata "oggi" + cambiamenti vs ultimo calcolo |
+| POST | `/portfolio/advice` | sì | piano unico: allocazione concreta (importi) + probabilità di successo + spiegazioni |
 | GET | `/scenarios` | — | elenco scenari storici |
 | GET | `/scenarios/events` | — | eventi macro reali nel range `date_from..date_to` |
 | POST | `/simulate` | sì | esegue + salva una simulazione |
@@ -270,14 +272,14 @@ I NaN vengono convertiti in `null` prima del salvataggio JSON (`_clean_nan`).
 
 ## 10. Test
 
-`cd apps/api && pytest -q` → **103 test**:
+`cd apps/api && pytest -q` → **109 test**:
 - `test_metrics.py` — formule Chameleon + metriche base (valori a mano);
 - `test_advanced_metrics.py` — Sortino, Calmar, VaR, CVaR, Beta, recovery;
 - `test_simulator.py` — pipeline su prezzi sintetici;
 - `test_api_auth.py` — login, register, RBAC, utente disattivato;
 - `test_api_simulate.py` — simulazione, ownership, DCA, Monte Carlo, export, eventi;
 - `test_planning.py` — goal-based: proiezione, contributo richiesto, allocazioni di riferimento;
-- `test_api_portfolio.py` — stress test, goal plan, allocazione consigliata + drift.
+- `test_api_portfolio.py` — stress test, goal plan, allocazione consigliata, piano unico (advice), notifiche.
 
 Infrastruttura test: SQLite in-memory + override di `get_db` + mock del repository
 prezzi (nessuna rete). Config in `pytest.ini` (`asyncio_mode=auto`).

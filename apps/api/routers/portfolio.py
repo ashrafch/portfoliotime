@@ -17,6 +17,16 @@ from engine.metrics import chameleon_portafoglio
 from engine.simulator import SimulationInput, run_simulation, compute_portfolio_returns, normalize_allocation
 from engine import planning
 from data import price_repository, fred_client
+import recommendation
+
+# Proxy reali usati dal motore (trasparenza: l'utente sa "cosa" sono le categorie)
+INSTRUMENT_PROXY = {
+    "azioni": "Azioni globali — proxy: S&P 500 (ETF SPY)",
+    "obbligazioni": "Obbligazioni governative — proxy: Treasury USA 20+ anni (ETF TLT)",
+    "oro": "Oro — proxy: ETF oro (GLD)",
+    "materie_prime": "Materie prime — proxy: ETF commodity (GSG)",
+    "bitcoin": "Bitcoin (BTC-USD)",
+}
 
 router = APIRouter()
 
@@ -230,58 +240,16 @@ async def recommended(
 
     Fonte macro: FRED (se configurato) altrimenti le assunzioni del profilo utente.
     """
-    profile = (await db.execute(
-        select(InvestorProfile).where(InvestorProfile.user_id == current_user.id)
-    )).scalar_one_or_none()
-    if profile is None:
-        profile = InvestorProfile(user_id=current_user.id)
-        db.add(profile)
-        await db.commit()
-        await db.refresh(profile)
+    profile = await _get_or_create_profile(db, current_user.id)
 
-    source = "profilo"
-    tasso_fed = profile.default_tasso_fed
-    inflazione = profile.default_inflazione
-    tasso_nominale = profile.default_tasso_fed
-    delta_tasso = 0.0
-    tassi_in_calo = False
+    rec = await recommendation.current_recommendation(profile)
+    allocazione = rec["allocazione"]
+    source = rec["source"]
 
-    if fred_client.is_configured():
-        try:
-            today = date.today()
-            snap = await fred_client.macro_snapshot(
-                (today - timedelta(days=400)).isoformat(), today.isoformat()
-            )
-            if snap:
-                tasso_fed = snap["tasso_fed"]
-                inflazione = snap["inflazione"]
-                tasso_nominale = snap["tasso_nominale"]
-                delta_tasso = snap["delta_tasso"]
-                tassi_in_calo = snap["tassi_in_calo"]
-                source = "fred"
-        except Exception:  # noqa: BLE001
-            pass
-
-    allocazione = chameleon_portafoglio(
-        eta=profile.eta, tasso_fed=tasso_fed, delta_tasso=delta_tasso,
-        btc_prezzo_corrente=0, btc_ath=0, is_post_halving=False,
-        tasso_nominale=tasso_nominale, inflazione=inflazione,
-        tassi_in_calo=tassi_in_calo, qe_attivo=False,
-    )
-
-    # Differenze rispetto all'ultimo snapshot salvato
-    previous = profile.last_recommended or None
-    changes = []
-    if previous:
-        for k in ASSET_KEYS:
-            old = float(previous.get(k, 0))
-            new = float(allocazione.get(k, 0))
-            if abs(new - old) >= 0.5:
-                changes.append({"asset": k, "da": round(old, 1), "a": round(new, 1)})
-
+    changes = recommendation.diff_allocations(profile.last_recommended, allocazione)
     previous_at = profile.last_recommended_at.isoformat() if profile.last_recommended_at else None
 
-    # Salva il nuovo snapshot
+    # Salva il nuovo snapshot (questo "segna come visto" per le notifiche)
     profile.last_recommended = allocazione
     profile.last_recommended_at = datetime.now(timezone.utc)
     await db.commit()
@@ -289,11 +257,7 @@ async def recommended(
     return {
         "allocazione": allocazione,
         "source": source,
-        "macro_used": {
-            "tasso_fed": tasso_fed, "inflazione": inflazione,
-            "tasso_nominale": tasso_nominale, "delta_tasso": delta_tasso,
-            "tassi_in_calo": tassi_in_calo,
-        },
+        "macro_used": rec["macro_used"],
         "changes": changes,
         "previous_at": previous_at,
         "note": (
@@ -302,3 +266,137 @@ async def recommended(
                                else "assunzioni del tuo profilo")
         ),
     }
+
+
+async def _get_or_create_profile(db: AsyncSession, user_id: str) -> InvestorProfile:
+    profile = (await db.execute(
+        select(InvestorProfile).where(InvestorProfile.user_id == user_id)
+    )).scalar_one_or_none()
+    if profile is None:
+        profile = InvestorProfile(user_id=user_id)
+        db.add(profile)
+        await db.commit()
+        await db.refresh(profile)
+    return profile
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Piano consigliato unico (sintesi: cosa investire + probabilità di successo)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class AdviceRequest(BaseModel):
+    initial_capital: float = Field(0.0, ge=0)
+    monthly_contribution: float = Field(0.0, ge=0)
+    horizon_years: int = Field(..., ge=1, le=50)
+    target: Optional[float] = Field(None, gt=0)
+    risk_profile: Optional[str] = None
+    basis: str = "strategic"  # strategic (in base al rischio) | chameleon (macro oggi)
+
+
+@router.post("/advice")
+async def advice(
+    request: AdviceRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Piano consigliato unico: una sola allocazione concreta (importi in valuta) con
+    la sua probabilità di raggiungere l'obiettivo, su dati storici reali.
+    """
+    profile = await _get_or_create_profile(db, current_user.id)
+
+    risk = request.risk_profile if request.risk_profile in planning.REFERENCE_ALLOCATIONS else profile.risk_profile
+    if risk not in planning.REFERENCE_ALLOCATIONS:
+        risk = "bilanciato"
+
+    # Allocazione consigliata: strategica (in base al rischio) o tattica (Chameleon oggi)
+    if request.basis == "chameleon":
+        rec = await recommendation.current_recommendation(profile)
+        allocation = rec["allocazione"]
+        alloc_source = rec["source"]  # fred | profilo
+    else:
+        allocation = planning.REFERENCE_ALLOCATIONS[risk]
+        alloc_source = "reference"
+
+    ref_from, ref_to = planning.REFERENCE_PERIOD
+    sim_input = SimulationInput(
+        eta=profile.eta, tasso_fed=0, delta_tasso=0, btc_prezzo_corrente=0, btc_ath=0,
+        is_post_halving=False, tasso_nominale=0, inflazione=0, tassi_in_calo=False,
+        qe_attivo=False, date_from=ref_from, date_to=ref_to,
+    )
+    tickers = _tickers_for_weights(allocation)
+    prices, _, _ = await price_repository.get_prices(db, tickers, ref_from, ref_to)
+    returns = compute_portfolio_returns(sim_input, prices, allocation_override=allocation)
+    if returns is None or len(returns) < 60:
+        raise HTTPException(status_code=422, detail="Dati di riferimento insufficienti.")
+
+    # Ripartizione concreta del capitale iniziale per categoria
+    breakdown = []
+    for k in ASSET_KEYS:
+        w = float(allocation.get(k, 0))
+        if w <= 0:
+            continue
+        breakdown.append({
+            "asset": k,
+            "instrument": INSTRUMENT_PROXY[k],
+            "weight_pct": round(w, 1),
+            "amount_now": round(request.initial_capital * w / 100.0, 2),
+        })
+
+    projection = planning.project_goal(
+        returns, request.horizon_years, request.initial_capital,
+        request.monthly_contribution, request.target or 0.0,
+    )
+    stats = planning.reference_stats(returns)
+    required = None
+    prob_txt = ""
+    if request.target:
+        required = planning.required_monthly_contribution(
+            returns, request.horizon_years, request.initial_capital, request.target,
+        )
+        p = round(projection["probability_success"] * 100)
+        prob_txt = (
+            f"Significa che in circa {p} scenari su 100 — basati sui rendimenti storici "
+            f"reali del periodo di riferimento — avresti raggiunto l'obiettivo."
+        )
+
+    fv = projection["final_value"]
+    explanations = {
+        "mix": _explain_mix(risk, request.basis),
+        "probability": prob_txt,
+        "scenarios": (
+            f"Nello scenario sfavorevole arriveresti a circa {fv['p10']:,.0f}, "
+            f"in quello mediano a {fv['p50']:,.0f}, in quello favorevole a {fv['p90']:,.0f} "
+            f"(valuta del profilo)."
+        ).replace(",", "."),
+    }
+
+    return _clean({
+        "basis": request.basis,
+        "risk_profile": risk,
+        "allocation_source": alloc_source,
+        "allocation": allocation,
+        "breakdown": breakdown,
+        "reference_period": {"from": ref_from, "to": ref_to},
+        "reference_stats": stats,
+        "projection": projection,
+        "required_monthly_contribution": required,
+        "explanations": explanations,
+        "disclaimer": (
+            "Questo è uno strumento educativo basato su dati storici reali, non una "
+            "consulenza finanziaria personalizzata. I risultati passati non garantiscono "
+            "quelli futuri."
+        ),
+    })
+
+
+def _explain_mix(risk: str, basis: str) -> str:
+    base = {
+        "conservativo": "Mix prudente: prevalgono le obbligazioni per limitare le oscillazioni, con una quota di azioni per la crescita e un po' d'oro come riserva.",
+        "bilanciato": "Mix equilibrato tra azioni (crescita) e obbligazioni (stabilità), con oro e materie prime per diversificare.",
+        "aggressivo": "Mix orientato alla crescita: forte peso delle azioni e una piccola quota di Bitcoin, con più oscillazioni nel breve.",
+    }.get(risk, "")
+    if basis == "chameleon":
+        base += " Pesi calcolati dal modello Chameleon sulla situazione macro attuale (tattico)."
+    else:
+        base += " Pesi strategici legati al tuo profilo di rischio, adatti a un orizzonte pluriennale."
+    return base

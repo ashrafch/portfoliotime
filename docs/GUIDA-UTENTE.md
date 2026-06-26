@@ -79,7 +79,24 @@ Dalla dashboard puoi premere **"Confronta"**, selezionare due simulazioni e vede
 
 ## Strumenti per i tuoi soldi (non solo ipotesi)
 
-Oltre alle simulazioni storiche, ci sono tre strumenti orientati alla tua situazione reale.
+Oltre alle simulazioni storiche, ci sono strumenti orientati alla tua situazione reale.
+
+### Il tuo piano (il consiglio completo) ⭐
+
+È il punto di arrivo: in una sola pagina ottieni **un consiglio concreto su come ripartire i tuoi soldi** e **quanto è probabile raggiungere il tuo obiettivo** — adatto sia a chi è esperto sia a chi non ha mai investito un euro.
+
+Inserisci quattro cose semplici: quanto hai ora, quanto puoi versare al mese, tra quanti anni, e (se vuoi) la cifra che vorresti raggiungere. Il sistema risponde con:
+
+- **Come dividere il capitale**, in cifre concrete e con il nome dello strumento per ogni parte (es. *"5.500 in azioni globali — ETF S&P 500"*). Non una percentuale astratta: ti dice quanto mettere e dove.
+- **La probabilità di farcela** (es. *"96%"*), spiegata: *"in circa 96 scenari su 100, basati sui rendimenti storici reali, avresti raggiunto l'obiettivo"*.
+- **Quanto versare al mese** per avere una buona probabilità di successo.
+- **Cosa potresti ritrovarti**: lo scenario sfavorevole, quello più probabile e quello favorevole.
+
+Puoi scegliere la base del consiglio:
+- **Strategica** — un mix stabile legato al tuo profilo di rischio (consigliata per il lungo termine);
+- **Chameleon** — i pesi calcolati dal modello sulla situazione economica di oggi.
+
+> ⚠️ Onestà: è uno strumento educativo basato su dati storici reali, **non una consulenza finanziaria personalizzata**. I risultati passati non garantiscono quelli futuri.
 
 ### Il mio portafoglio (stress test)
 Inserisci quanto possiedi per categoria (azioni, obbligazioni, oro, ecc.) e premi **Stress test**: vedi come il *tuo* portafoglio avrebbe retto nelle crisi vere (2008, COVID, 2022, dot-com), con rendimento, caduta peggiore e valore finale per ciascuna.
@@ -94,6 +111,8 @@ Imposti una meta (es. *100.000 tra 15 anni*), il capitale di partenza e quanto v
 
 ### Oggi (allocazione consigliata)
 Mostra come il modello Chameleon distribuirebbe il portafoglio **nella situazione economica attuale**, e — se l'avevi già calcolata prima — **cosa è cambiato** (es. "Azioni 60% → 55%"). Le condizioni macro vengono dai dati ufficiali (FRED) se configurati, altrimenti dalle assunzioni del tuo profilo.
+
+Quando l'allocazione consigliata cambia, in **dashboard** compare un avviso ("🔔 La tua allocazione consigliata è cambiata"): così non devi controllare a mano. L'avviso si azzera quando apri la pagina *Oggi*.
 
 ---
 
