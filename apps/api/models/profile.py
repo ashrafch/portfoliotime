@@ -1,6 +1,6 @@
 """Profilo investitore — dati personalizzati 1:1 con l'utente."""
 
-from sqlalchemy import String, Integer, Float, DateTime, ForeignKey, func
+from sqlalchemy import String, Integer, Float, DateTime, JSON, ForeignKey, func
 from sqlalchemy.orm import Mapped, mapped_column
 from datetime import datetime
 from database import Base
@@ -25,3 +25,7 @@ class InvestorProfile(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+    # Ultima allocazione consigliata calcolata (per rilevare i cambiamenti / "alert")
+    last_recommended: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    last_recommended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
