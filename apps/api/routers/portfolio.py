@@ -28,6 +28,37 @@ INSTRUMENT_PROXY = {
     "bitcoin": "Bitcoin (BTC-USD)",
 }
 
+# Esempi REALI di strumenti UCITS (adatti a un investitore in UE) allineati alla
+# categoria simulata. NON sono consigli personalizzati: vedi instruments_note.
+INSTRUMENT_EXAMPLES = {
+    "azioni": [
+        {"name": "iShares Core S&P 500 UCITS", "ticker": "CSPX", "type": "ETF azionario USA"},
+        {"name": "Vanguard FTSE All-World UCITS", "ticker": "VWCE", "type": "ETF azionario globale"},
+    ],
+    "obbligazioni": [
+        {"name": "iShares $ Treasury Bond 20+yr UCITS", "ticker": "IDTL", "type": "ETF Treasury USA lunghe"},
+        {"name": "iShares Core Global Aggregate Bond UCITS", "ticker": "AGGH", "type": "ETF obbligazionario globale"},
+    ],
+    "oro": [
+        {"name": "iShares Physical Gold ETC", "ticker": "SGLN", "type": "ETC oro fisico"},
+        {"name": "Invesco Physical Gold ETC", "ticker": "SGLD", "type": "ETC oro fisico"},
+    ],
+    "materie_prime": [
+        {"name": "Invesco Bloomberg Commodity UCITS", "ticker": "CMOD", "type": "ETF materie prime"},
+        {"name": "iShares Diversified Commodity Swap UCITS", "ticker": "ICOM", "type": "ETF materie prime"},
+    ],
+    "bitcoin": [
+        {"name": "ETP Bitcoin fisico (es. CoinShares, 21Shares)", "ticker": "—", "type": "ETP cripto (in UE non esistono ETF)"},
+    ],
+}
+
+INSTRUMENTS_NOTE = (
+    "Esempi di strumenti UCITS adatti a un investitore in UE, allineati alla categoria "
+    "simulata (stesso indice/asset). NON sono consigli personalizzati: verifica costi "
+    "annui (TER), ISIN, valuta, politica dei dividendi (accumulazione/distribuzione) e "
+    "disponibilità sul tuo broker. In caso di dubbio rivolgiti a un consulente."
+)
+
 router = APIRouter()
 
 ASSET_KEYS = ["azioni", "obbligazioni", "oro", "materie_prime", "bitcoin"]
@@ -368,6 +399,7 @@ async def advice(
         breakdown.append({
             "asset": k,
             "instrument": INSTRUMENT_PROXY[k],
+            "examples": INSTRUMENT_EXAMPLES.get(k, []),
             "weight_pct": round(w, 1),
             "amount_now": round(request.initial_capital * w / 100.0, 2),       # compat
             "amount_initial": round(request.initial_capital * w / 100.0, 2),
@@ -436,6 +468,7 @@ async def advice(
         "projection": projection,
         "required_monthly_contribution": required,
         "explanations": explanations,
+        "instruments_note": INSTRUMENTS_NOTE,
         "disclaimer": (
             "Questo è uno strumento educativo basato su dati storici reali, non una "
             "consulenza finanziaria personalizzata. I risultati passati non garantiscono "

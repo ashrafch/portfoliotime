@@ -87,7 +87,9 @@ Oltre alle simulazioni storiche, ci sono strumenti orientati alla tua situazione
 
 Inserisci quattro cose semplici: quanto hai ora, quanto puoi versare al mese, tra quanti anni, e (se vuoi) la cifra che vorresti raggiungere. Il sistema risponde con:
 
-- **Come dividere il capitale**, in cifre concrete e con il nome dello strumento per ogni parte (es. *"5.500 in azioni globali — ETF S&P 500"*). Non una percentuale astratta: ti dice quanto mettere e dove. Le stesse percentuali valgono **sia per il capitale iniziale sia per ogni versamento mensile**: così funziona anche se parti da zero e investi solo un po' ogni mese.
+- **Come dividere il capitale**, in cifre concrete e con il nome dello strumento per ogni parte (es. *"5.500 in azioni globali — ETF S&P 500"*). Non una percentuale astratta: ti dice quanto mettere e dove. Le stesse percentuali valgono **sia per il capitale iniziale sia per ogni versamento mensile**: così funziona anche se parti da zero e investi solo un po' ogni mese. Per ogni categoria trovi anche **esempi di strumenti reali** (ETF UCITS adatti a chi investe in UE, es. *CSPX*, *VWCE*).
+
+> ⚠️ Onestà: gli strumenti mostrati sono **esempi**, non consigli personalizzati. Prima di comprare verifica costi annui (TER), ISIN e disponibilità sul tuo broker. In caso di dubbio, rivolgiti a un consulente.
 - **La probabilità di farcela** (es. *"96%"*), spiegata: *"in circa 96 scenari su 100, basati sui rendimenti storici reali, avresti raggiunto l'obiettivo"*.
 - **Quanto versare al mese** per avere una buona probabilità di successo.
 - **Cosa potresti ritrovarti**: lo scenario sfavorevole, quello più probabile e quello favorevole.

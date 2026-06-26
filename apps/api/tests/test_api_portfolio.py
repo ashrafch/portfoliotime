@@ -113,6 +113,15 @@ class TestAdvice:
         assert d["composition"]["initial"] == 0
         assert d["composition"]["monthly_total"] > 0
 
+    async def test_advice_include_esempi_strumenti(self, client, user_headers):
+        body = {"initial_capital": 10000, "monthly_contribution": 0, "horizon_years": 10,
+                "risk_profile": "bilanciato"}
+        d = (await client.post("/portfolio/advice", headers=user_headers, json=body)).json()
+        assert "instruments_note" in d and "non sono consigli" in d["instruments_note"].lower()
+        for b in d["breakdown"]:
+            assert isinstance(b["examples"], list) and len(b["examples"]) >= 1
+            assert all("name" in e and "ticker" in e for e in b["examples"])
+
     async def test_advice_glide_path(self, client, user_headers):
         body = {"initial_capital": 10000, "monthly_contribution": 200, "horizon_years": 20,
                 "target": 200000, "risk_profile": "aggressivo", "glide_path": True}

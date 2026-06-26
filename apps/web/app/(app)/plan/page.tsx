@@ -168,8 +168,11 @@ export default function PlanPage() {
           <section className="mb-6 rounded-lg border border-slate-800 p-6">
             <h2 className="mb-1 text-lg font-semibold">Come ripartire</h2>
             {result.glide.enabled && result.glide.end_equity !== null && (
-              <div className="mb-2 inline-block rounded-full border border-blue-700 bg-blue-950/30 px-3 py-1 text-xs text-blue-300">
-                Rischio in calo nel tempo: azioni {result.glide.start_equity}% oggi → {result.glide.end_equity}% all&apos;obiettivo
+              <div className="mb-3">
+                <div className="mb-1 inline-block rounded-full border border-blue-700 bg-blue-950/30 px-3 py-1 text-xs text-blue-300">
+                  Rischio in calo nel tempo: azioni {result.glide.start_equity}% oggi → {result.glide.end_equity}% all&apos;obiettivo
+                </div>
+                <GlideCurve start={result.glide.start_equity} end={result.glide.end_equity} years={form.horizon_years} />
               </div>
             )}
             <p className="mb-3 text-sm text-slate-400">{result.explanations.mix}</p>
@@ -194,6 +197,12 @@ export default function PlanPage() {
                   <div className="w-40 shrink-0">
                     <div className="text-sm font-medium">{LABELS[b.asset] ?? b.asset} <span className="text-xs text-slate-500">{b.weight_pct}%</span></div>
                     <div className="text-[11px] text-slate-500">{b.instrument}</div>
+                    {b.examples?.length > 0 && (
+                      <div className="text-[11px] text-slate-600"
+                        title={b.examples.map((e) => `${e.name} (${e.ticker})`).join(" · ")}>
+                        Es: {b.examples.map((e) => e.ticker).filter((t) => t !== "—").join(" · ") || b.examples[0].name}
+                      </div>
+                    )}
                   </div>
                   <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-800">
                     <div className={`h-full ${COLORS[b.asset] ?? "bg-slate-500"}`} style={{ width: `${Math.min(b.weight_pct, 100)}%` }} />
@@ -222,6 +231,7 @@ export default function PlanPage() {
                 <> — interamente come capitale iniziale</>
               )}.
             </p>
+            <p className="mt-2 text-[11px] text-slate-500">ℹ️ {result.instruments_note}</p>
           </section>
 
           {/* Scenari */}
@@ -268,5 +278,25 @@ function Sc({ label, value, tone }: { label: string; value: string; tone: string
       <div className={`text-lg font-bold ${tone}`}>{value}</div>
       <div className="text-xs text-slate-400">{label}</div>
     </div>
+  );
+}
+
+// Mini-curva: quota azioni che scende da `start` a `end` lungo gli anni.
+function GlideCurve({ start, end, years }: { start: number; end: number; years: number }) {
+  const W = 320, H = 70, pad = 22;
+  const x0 = pad, x1 = W - pad, yTop = 8, yBot = H - 18;
+  const yOf = (eq: number) => yBot - (eq / 100) * (yBot - yTop);
+  const yA = yOf(start), yB = yOf(end);
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full max-w-md" style={{ minWidth: 240 }}>
+      <line x1={x0} y1={yBot} x2={x1} y2={yBot} stroke="#1e293b" strokeWidth="1" />
+      <line x1={x0} y1={yA} x2={x1} y2={yB} stroke="#3b82f6" strokeWidth="2" />
+      <circle cx={x0} cy={yA} r="3" fill="#3b82f6" />
+      <circle cx={x1} cy={yB} r="3" fill="#3b82f6" />
+      <text x={x0} y={yA - 6} fontSize="9" fill="#93c5fd" textAnchor="start">{start}% azioni</text>
+      <text x={x1} y={yB - 6} fontSize="9" fill="#93c5fd" textAnchor="end">{end}%</text>
+      <text x={x0} y={H - 4} fontSize="9" fill="#64748b" textAnchor="start">oggi</text>
+      <text x={x1} y={H - 4} fontSize="9" fill="#64748b" textAnchor="end">tra {years} anni</text>
+    </svg>
   );
 }
