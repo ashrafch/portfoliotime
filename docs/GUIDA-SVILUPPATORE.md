@@ -52,7 +52,8 @@ portfoliotime/
 │   │   ├── engine/
 │   │   │   ├── metrics.py        # formule Chameleon + metriche (base e avanzate)
 │   │   │   ├── simulator.py      # orchestratore: allocazione → metriche → money/DCA
-│   │   │   ├── montecarlo.py     # proiezione bootstrap
+│   │   │   ├── montecarlo.py     # proiezione bootstrap (storico)
+│   │   │   ├── planning.py       # goal-based: proiezione forward + versamento richiesto
 │   │   │   └── narrative.py      # interpretazione (Claude o template)
 │   │   ├── data/
 │   │   │   ├── yfinance_client.py   # download prezzi (azioni/ETF + BTC)
@@ -227,6 +228,9 @@ I NaN vengono convertiti in `null` prima del salvataggio JSON (`_clean_nan`).
 | GET/PUT | `/me/profile` | sì | profilo investitore (auto-creato) |
 | GET | `/me/analytics` | sì | aggregati sullo storico personale |
 | POST | `/portfolio/allocation` | sì | anteprima allocazione (no dati di mercato) |
+| POST | `/portfolio/stress-test` | sì | testa il portafoglio posseduto contro crisi storiche |
+| POST | `/portfolio/goal-plan` | sì | proiezione goal-based + versamento necessario |
+| GET | `/portfolio/recommended` | sì | allocazione consigliata "oggi" + cambiamenti vs ultimo calcolo |
 | GET | `/scenarios` | — | elenco scenari storici |
 | GET | `/scenarios/events` | — | eventi macro reali nel range `date_from..date_to` |
 | POST | `/simulate` | sì | esegue + salva una simulazione |
@@ -266,12 +270,14 @@ I NaN vengono convertiti in `null` prima del salvataggio JSON (`_clean_nan`).
 
 ## 10. Test
 
-`cd apps/api && pytest -q` → **87 test**:
+`cd apps/api && pytest -q` → **103 test**:
 - `test_metrics.py` — formule Chameleon + metriche base (valori a mano);
 - `test_advanced_metrics.py` — Sortino, Calmar, VaR, CVaR, Beta, recovery;
 - `test_simulator.py` — pipeline su prezzi sintetici;
 - `test_api_auth.py` — login, register, RBAC, utente disattivato;
-- `test_api_simulate.py` — simulazione, ownership, DCA, Monte Carlo, export, eventi.
+- `test_api_simulate.py` — simulazione, ownership, DCA, Monte Carlo, export, eventi;
+- `test_planning.py` — goal-based: proiezione, contributo richiesto, allocazioni di riferimento;
+- `test_api_portfolio.py` — stress test, goal plan, allocazione consigliata + drift.
 
 Infrastruttura test: SQLite in-memory + override di `get_db` + mock del repository
 prezzi (nessuna rete). Config in `pytest.ini` (`asyncio_mode=auto`).

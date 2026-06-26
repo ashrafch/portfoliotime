@@ -81,6 +81,51 @@ export interface MarketEvent {
   label: string;
 }
 
+export interface StressScenarioResult {
+  label: string;
+  date_from: string;
+  date_to: string;
+  total_return: number | null;
+  max_drawdown: number | null;
+  final_value: number | null;
+  warnings: string[];
+}
+
+export interface StressTestResult {
+  total_value: number;
+  weights: Allocation;
+  scenarios: StressScenarioResult[];
+}
+
+export interface GoalPlanResult {
+  risk_profile: string;
+  allocation: Allocation;
+  reference_period: { from: string; to: string };
+  reference_stats: { annual_return: number | null; annual_volatility: number | null };
+  projection: {
+    probability_success: number;
+    final_value: { p10: number; p50: number; p90: number };
+    total_contributed: number;
+    target: number;
+    horizon_years: number;
+    monthly_contribution: number;
+  };
+  required_monthly_contribution: number | null;
+  disclaimer: string;
+}
+
+export interface RecommendedResult {
+  allocazione: Allocation;
+  source: "fred" | "profilo";
+  macro_used: {
+    tasso_fed: number; inflazione: number; tasso_nominale: number;
+    delta_tasso: number; tassi_in_calo: boolean;
+  };
+  changes: { asset: string; da: number; a: number }[];
+  previous_at: string | null;
+  note: string;
+}
+
 export interface SimulationRecord {
   id: string;
   status: string;

@@ -77,6 +77,26 @@ Dalla dashboard puoi premere **"Confronta"**, selezionare due simulazioni e vede
 
 ---
 
+## Strumenti per i tuoi soldi (non solo ipotesi)
+
+Oltre alle simulazioni storiche, ci sono tre strumenti orientati alla tua situazione reale.
+
+### Il mio portafoglio (stress test)
+Inserisci quanto possiedi per categoria (azioni, obbligazioni, oro, ecc.) e premi **Stress test**: vedi come il *tuo* portafoglio avrebbe retto nelle crisi vere (2008, COVID, 2022, dot-com), con rendimento, caduta peggiore e valore finale per ciascuna.
+
+### Obiettivi
+Imposti una meta (es. *100.000 tra 15 anni*), il capitale di partenza e quanto versi al mese. Il sistema ti dice:
+- la **probabilità di raggiungere l'obiettivo**,
+- una forbice del valore finale (sfavorevole / mediano / favorevole),
+- il **versamento mensile necessario** per avere una buona probabilità di farcela.
+
+> ⚠️ Onestà: è una proiezione basata sui rendimenti storici di un periodo di riferimento, **non una garanzia**. È scritto anche nell'app.
+
+### Oggi (allocazione consigliata)
+Mostra come il modello Chameleon distribuirebbe il portafoglio **nella situazione economica attuale**, e — se l'avevi già calcolata prima — **cosa è cambiato** (es. "Azioni 60% → 55%"). Le condizioni macro vengono dai dati ufficiali (FRED) se configurati, altrimenti dalle assunzioni del tuo profilo.
+
+---
+
 ## Il tuo profilo
 
 Nella pagina **Profilo** imposti una volta sola:
