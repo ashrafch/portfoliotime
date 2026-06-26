@@ -268,6 +268,26 @@ async def recommended(
     }
 
 
+@router.get("/allocation-presets")
+async def allocation_presets(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Allocazioni pronte da caricare in una simulazione (senza effetti collaterali):
+    - strategica: il mix legato al profilo di rischio dell'utente
+    - consigliata: l'allocazione Chameleon sulla macro attuale
+    """
+    profile = await _get_or_create_profile(db, current_user.id)
+    risk = profile.risk_profile if profile.risk_profile in planning.REFERENCE_ALLOCATIONS else "bilanciato"
+    rec = await recommendation.current_recommendation(profile)
+    return {
+        "strategic": planning.REFERENCE_ALLOCATIONS[risk],
+        "strategic_risk": risk,
+        "recommended": rec["allocazione"],
+        "recommended_source": rec["source"],
+    }
+
+
 async def _get_or_create_profile(db: AsyncSession, user_id: str) -> InvestorProfile:
     profile = (await db.execute(
         select(InvestorProfile).where(InvestorProfile.user_id == user_id)
@@ -329,7 +349,9 @@ async def advice(
     if returns is None or len(returns) < 60:
         raise HTTPException(status_code=422, detail="Dati di riferimento insufficienti.")
 
-    # Ripartizione concreta del capitale iniziale per categoria
+    # Ripartizione concreta per categoria: vale sia per il capitale iniziale sia
+    # per OGNI versamento mensile (stesse percentuali). Così è utile anche con
+    # capitale iniziale = 0 (piano di solo accumulo).
     breakdown = []
     for k in ASSET_KEYS:
         w = float(allocation.get(k, 0))
@@ -339,7 +361,9 @@ async def advice(
             "asset": k,
             "instrument": INSTRUMENT_PROXY[k],
             "weight_pct": round(w, 1),
-            "amount_now": round(request.initial_capital * w / 100.0, 2),
+            "amount_now": round(request.initial_capital * w / 100.0, 2),       # compat
+            "amount_initial": round(request.initial_capital * w / 100.0, 2),
+            "amount_monthly": round(request.monthly_contribution * w / 100.0, 2),
         })
 
     projection = planning.project_goal(
@@ -370,12 +394,22 @@ async def advice(
         ).replace(",", "."),
     }
 
+    total_contrib = projection["total_contributed"]
+    composition = {
+        "initial": round(request.initial_capital, 2),
+        "monthly_total": round(total_contrib - request.initial_capital, 2),
+        "total": round(total_contrib, 2),
+        "initial_share": (request.initial_capital / total_contrib) if total_contrib > 0 else 0.0,
+        "months": max(request.horizon_years * 12 - 1, 0) if request.monthly_contribution > 0 else 0,
+    }
+
     return _clean({
         "basis": request.basis,
         "risk_profile": risk,
         "allocation_source": alloc_source,
         "allocation": allocation,
         "breakdown": breakdown,
+        "composition": composition,
         "reference_period": {"from": ref_from, "to": ref_to},
         "reference_stats": stats,
         "projection": projection,

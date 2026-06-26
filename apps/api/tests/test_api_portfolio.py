@@ -103,6 +103,24 @@ class TestAdvice:
         r = await client.post("/portfolio/advice", json={"horizon_years": 10})
         assert r.status_code == 401
 
+    async def test_advice_ripartizione_anche_su_mensile(self, client, user_headers):
+        # capitale iniziale 0, solo versamento mensile → la ripartizione deve esserci comunque
+        body = {"initial_capital": 0, "monthly_contribution": 500, "horizon_years": 10,
+                "risk_profile": "bilanciato"}
+        d = (await client.post("/portfolio/advice", headers=user_headers, json=body)).json()
+        assert all(b["amount_initial"] == 0 for b in d["breakdown"])
+        assert sum(b["amount_monthly"] for b in d["breakdown"]) == pytest.approx(500, abs=1.0)
+        assert d["composition"]["initial"] == 0
+        assert d["composition"]["monthly_total"] > 0
+
+    async def test_allocation_presets(self, client, user_headers):
+        r = await client.get("/portfolio/allocation-presets", headers=user_headers)
+        assert r.status_code == 200
+        d = r.json()
+        assert set(d["strategic"].keys()) >= {"azioni", "obbligazioni"}
+        assert d["recommended"] is not None
+        assert d["recommended_source"] in ("fred", "profilo")
+
 
 class TestNotifications:
     async def test_no_changes_initially(self, client, user_headers):

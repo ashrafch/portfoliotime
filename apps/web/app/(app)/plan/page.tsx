@@ -61,6 +61,23 @@ export default function PlanPage() {
 
       {/* Input */}
       <section className="mb-6 rounded-lg border border-slate-800 p-6">
+        {/* Preset rapidi: come vuoi investire */}
+        <div className="mb-4 flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-slate-400">Come vuoi investire:</span>
+          <button type="button" onClick={() => up("monthly_contribution", 0)}
+            className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300 hover:border-green-500">
+            Investo tutto subito
+          </button>
+          <button type="button" onClick={() => up("initial_capital", 0)}
+            className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300 hover:border-green-500">
+            Solo versamento mensile
+          </button>
+          <button type="button" onClick={() => { up("initial_capital", 10000); up("monthly_contribution", 300); }}
+            className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300 hover:border-green-500">
+            Misto
+          </button>
+        </div>
+
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <F label={`Quanto hai ora (${currency})`} hint="Il capitale di partenza. Può anche essere 0.">
             <input type="number" min={0} step={500} value={form.initial_capital}
@@ -136,25 +153,57 @@ export default function PlanPage() {
 
           {/* Cosa investire — la ripartizione concreta */}
           <section className="mb-6 rounded-lg border border-slate-800 p-6">
-            <h2 className="mb-1 text-lg font-semibold">Come ripartire {money(form.initial_capital, currency)}</h2>
-            <p className="mb-4 text-sm text-slate-400">{result.explanations.mix}</p>
+            <h2 className="mb-1 text-lg font-semibold">Come ripartire</h2>
+            <p className="mb-3 text-sm text-slate-400">{result.explanations.mix}</p>
+            <p className="mb-4 text-xs text-slate-500">
+              {result.composition.initial > 0 && result.composition.months > 0
+                ? `Le stesse percentuali valgono sia per i ${money(result.composition.initial, currency)} iniziali sia per ogni versamento di ${money(form.monthly_contribution, currency)}/mese.`
+                : result.composition.months > 0
+                ? `Le percentuali valgono per ogni versamento di ${money(form.monthly_contribution, currency)}/mese.`
+                : `Ripartizione del capitale iniziale di ${money(form.initial_capital, currency)}.`}
+            </p>
+
+            {/* intestazioni colonne importi */}
+            <div className="mb-1 flex items-center gap-3 text-[11px] uppercase tracking-wide text-slate-500">
+              <span className="w-40 shrink-0">Categoria</span>
+              <span className="flex-1" />
+              {result.composition.initial > 0 && <span className="w-24 shrink-0 text-right">Iniziale</span>}
+              {result.composition.months > 0 && <span className="w-24 shrink-0 text-right">Ogni mese</span>}
+            </div>
             <div className="space-y-3">
               {result.breakdown.map((b) => (
                 <div key={b.asset} className="flex items-center gap-3">
                   <div className="w-40 shrink-0">
-                    <div className="text-sm font-medium">{LABELS[b.asset] ?? b.asset}</div>
+                    <div className="text-sm font-medium">{LABELS[b.asset] ?? b.asset} <span className="text-xs text-slate-500">{b.weight_pct}%</span></div>
                     <div className="text-[11px] text-slate-500">{b.instrument}</div>
                   </div>
                   <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-800">
                     <div className={`h-full ${COLORS[b.asset] ?? "bg-slate-500"}`} style={{ width: `${Math.min(b.weight_pct, 100)}%` }} />
                   </div>
-                  <div className="w-28 shrink-0 text-right">
-                    <span className="font-semibold">{money(b.amount_now, currency)}</span>
-                    <span className="ml-1 text-xs text-slate-500">{b.weight_pct}%</span>
-                  </div>
+                  {result.composition.initial > 0 && (
+                    <span className="w-24 shrink-0 text-right font-semibold">{money(b.amount_initial, currency)}</span>
+                  )}
+                  {result.composition.months > 0 && (
+                    <span className="w-24 shrink-0 text-right font-semibold text-slate-300">{money(b.amount_monthly, currency)}</span>
+                  )}
                 </div>
               ))}
             </div>
+
+            {/* composizione del totale versato */}
+            <p className="mt-4 border-t border-slate-800 pt-3 text-xs text-slate-500">
+              In tutto verserai <strong className="text-slate-300">{money(result.composition.total, currency)}</strong>
+              {result.composition.initial > 0 && result.composition.monthly_total > 0 && (
+                <> — {money(result.composition.initial, currency)} iniziali ({Math.round(result.composition.initial_share * 100)}%)
+                {" "}+ {money(result.composition.monthly_total, currency)} di versamenti ({result.composition.months} mesi)</>
+              )}
+              {result.composition.initial === 0 && result.composition.monthly_total > 0 && (
+                <> — interamente da versamenti mensili ({result.composition.months} mesi)</>
+              )}
+              {result.composition.monthly_total === 0 && (
+                <> — interamente come capitale iniziale</>
+              )}.
+            </p>
           </section>
 
           {/* Scenari */}

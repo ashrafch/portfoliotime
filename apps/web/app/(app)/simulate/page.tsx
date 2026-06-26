@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { apiRequest } from "@/lib/api";
 import type {
   SimulateRequest, Scenario, SimulationRecord, InvestorProfile,
-  MacroSuggestion, Allocation,
+  MacroSuggestion, Allocation, AllocationPresets,
 } from "@/lib/types";
 
 const DEFAULTS: SimulateRequest = {
@@ -33,8 +33,28 @@ export default function SimulatePage() {
   const [submitting, setSubmitting] = useState(false);
   const [fredMsg, setFredMsg] = useState<string | null>(null);
   const [fredLoading, setFredLoading] = useState(false);
+  const [presetMsg, setPresetMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+
+  async function loadPreset(which: "strategic" | "recommended") {
+    setPresetMsg(null);
+    try {
+      const p = await apiRequest<AllocationPresets>("/portfolio/allocation-presets");
+      const a = which === "strategic" ? p.strategic : p.recommended;
+      setAlloc({
+        azioni: Math.round(a.azioni), obbligazioni: Math.round(a.obbligazioni),
+        oro: Math.round(a.oro), materie_prime: Math.round(a.materie_prime),
+        bitcoin: Math.round(a.bitcoin),
+      });
+      setMode("custom");
+      setPresetMsg(which === "strategic"
+        ? `Caricata l'allocazione strategica del tuo profilo (${p.strategic_risk}).`
+        : `Caricata l'allocazione consigliata oggi (fonte: ${p.recommended_source === "fred" ? "FRED" : "profilo"}).`);
+    } catch (e) {
+      setPresetMsg(e instanceof Error ? e.message : "Errore caricamento allocazione");
+    }
+  }
 
   useEffect(() => {
     apiRequest<Scenario[]>("/scenarios", { auth: false }).then(setScenarios).catch(() => {});
@@ -170,6 +190,18 @@ export default function SimulatePage() {
 
           {mode === "custom" && (
             <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <span className="text-slate-400">Carica da:</span>
+                <button type="button" onClick={() => loadPreset("strategic")}
+                  className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300 hover:border-green-500">
+                  Profilo (strategica)
+                </button>
+                <button type="button" onClick={() => loadPreset("recommended")}
+                  className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300 hover:border-green-500">
+                  Consigliata oggi
+                </button>
+              </div>
+              {presetMsg && <p className="text-xs text-green-400">{presetMsg}</p>}
               {(Object.keys(alloc) as (keyof Allocation)[]).map((k) => (
                 <div key={k} className="flex items-center gap-3">
                   <span className="w-32 text-sm text-slate-300">{ALLOC_LABELS[k]}</span>

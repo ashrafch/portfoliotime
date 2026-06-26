@@ -29,7 +29,7 @@ L'idea di fondo: invece di promettere il futuro (che nessuno conosce), guarda al
 Quando crei una simulazione puoi scegliere come distribuire i tuoi soldi tra i vari tipi di investimento (azioni, obbligazioni, oro, materie prime, Bitcoin):
 
 - **Chameleon (automatica)** — il sistema decide i pesi da solo, in base alla tua età e alla situazione economica (tassi, inflazione…). È la strategia proprietaria del progetto.
-- **Personalizzata** — decidi tu le percentuali con dei cursori, e vedi come sarebbe andata la *tua* scelta.
+- **Personalizzata** — decidi tu le percentuali con dei cursori, e vedi come sarebbe andata la *tua* scelta. Puoi anche **caricare** l'allocazione **dal tuo profilo** (strategica) o quella **consigliata oggi**, invece di impostarla a mano. Le condizioni macro del modello Chameleon si pre-compilano dal tuo profilo.
 
 ---
 
@@ -87,10 +87,12 @@ Oltre alle simulazioni storiche, ci sono strumenti orientati alla tua situazione
 
 Inserisci quattro cose semplici: quanto hai ora, quanto puoi versare al mese, tra quanti anni, e (se vuoi) la cifra che vorresti raggiungere. Il sistema risponde con:
 
-- **Come dividere il capitale**, in cifre concrete e con il nome dello strumento per ogni parte (es. *"5.500 in azioni globali — ETF S&P 500"*). Non una percentuale astratta: ti dice quanto mettere e dove.
+- **Come dividere il capitale**, in cifre concrete e con il nome dello strumento per ogni parte (es. *"5.500 in azioni globali — ETF S&P 500"*). Non una percentuale astratta: ti dice quanto mettere e dove. Le stesse percentuali valgono **sia per il capitale iniziale sia per ogni versamento mensile**: così funziona anche se parti da zero e investi solo un po' ogni mese.
 - **La probabilità di farcela** (es. *"96%"*), spiegata: *"in circa 96 scenari su 100, basati sui rendimenti storici reali, avresti raggiunto l'obiettivo"*.
 - **Quanto versare al mese** per avere una buona probabilità di successo.
 - **Cosa potresti ritrovarti**: lo scenario sfavorevole, quello più probabile e quello favorevole.
+
+Con i **preset rapidi** scegli come investire: *Investo tutto subito* (solo capitale iniziale), *Solo versamento mensile* (parti da zero e accumuli), oppure *Misto*. Capitale iniziale e versamento mensile sono due leve indipendenti: il piano fa crescere ciascun importo per il tempo in cui resta investito e somma i risultati.
 
 Puoi scegliere la base del consiglio:
 - **Strategica** — un mix stabile legato al tuo profilo di rischio (consigliata per il lungo termine);
