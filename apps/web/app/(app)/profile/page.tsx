@@ -98,7 +98,25 @@ export default function ProfilePage() {
               <input type="text" value={profile.goal} placeholder="es. pensione, crescita capitale, casa"
                 onChange={(e) => set("goal", e.target.value)} className={inputCls} />
             </label>
+            <label className="block">
+              <span className="text-sm text-slate-400">Paese (fiscale)</span>
+              <input type="text" value={profile.country} placeholder="es. Italia"
+                onChange={(e) => set("country", e.target.value)} className={inputCls} />
+            </label>
+            <label className="block">
+              <span className="text-sm text-slate-400">Preferenza dividendi</span>
+              <select value={profile.dividend_preference}
+                onChange={(e) => set("dividend_preference", e.target.value as InvestorProfile["dividend_preference"])}
+                className={inputCls}>
+                <option value="accumulazione">Accumulazione (reinveste)</option>
+                <option value="distribuzione">Distribuzione (paga cedole)</option>
+                <option value="indifferente">Indifferente</option>
+              </select>
+            </label>
           </div>
+          <p className="mt-3 text-xs text-slate-500">
+            Usate per ordinare gli esempi di strumenti nel piano (es. ETF ad accumulazione, comuni in Italia).
+          </p>
         </section>
 
         <section className="rounded-lg border border-slate-800 p-6">

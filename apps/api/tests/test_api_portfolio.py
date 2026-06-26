@@ -122,6 +122,15 @@ class TestAdvice:
             assert isinstance(b["examples"], list) and len(b["examples"]) >= 1
             assert all("name" in e and "ticker" in e for e in b["examples"])
 
+    async def test_esempi_ordinati_per_preferenza(self, client, user_headers):
+        # preferenza distribuzione → per le azioni il primo esempio deve essere "Dist"
+        await client.put("/me/profile", headers=user_headers, json={"dividend_preference": "distribuzione"})
+        body = {"initial_capital": 10000, "monthly_contribution": 0, "horizon_years": 10}
+        d = (await client.post("/portfolio/advice", headers=user_headers, json=body)).json()
+        azioni = next(b for b in d["breakdown"] if b["asset"] == "azioni")
+        assert azioni["examples"][0]["dist"] == "Dist"
+        assert d["instruments_pref"]["dividend_preference"] == "distribuzione"
+
     async def test_advice_glide_path(self, client, user_headers):
         body = {"initial_capital": 10000, "monthly_contribution": 200, "horizon_years": 20,
                 "target": 200000, "risk_profile": "aggressivo", "glide_path": True}

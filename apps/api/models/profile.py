@@ -18,6 +18,11 @@ class InvestorProfile(Base):
     base_currency: Mapped[str] = mapped_column(String(3), default="EUR")
     goal: Mapped[str] = mapped_column(String, default="")
 
+    # Preferenze fiscali (per ordinare/etichettare gli esempi di strumenti)
+    country: Mapped[str] = mapped_column(String, default="Italia")
+    # accumulazione | distribuzione | indifferente
+    dividend_preference: Mapped[str] = mapped_column(String, default="accumulazione")
+
     # Assunzioni macro di default (pre-compilano il form simulazione)
     default_tasso_fed: Mapped[float] = mapped_column(Float, default=5.25)
     default_inflazione: Mapped[float] = mapped_column(Float, default=3.5)

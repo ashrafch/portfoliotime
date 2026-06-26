@@ -27,6 +27,8 @@ class ProfileResponse(BaseModel):
     goal: str
     default_tasso_fed: float
     default_inflazione: float
+    country: str
+    dividend_preference: str
 
     class Config:
         from_attributes = True
@@ -39,6 +41,11 @@ class ProfileUpdate(BaseModel):
     goal: Optional[str] = Field(None, max_length=200)
     default_tasso_fed: Optional[float] = Field(None, ge=0.0, le=25.0)
     default_inflazione: Optional[float] = Field(None, ge=-5.0, le=50.0)
+    country: Optional[str] = Field(None, max_length=60)
+    dividend_preference: Optional[str] = None
+
+
+VALID_DIVIDEND_PREF = {"accumulazione", "distribuzione", "indifferente"}
 
 
 async def _get_or_create_profile(db: AsyncSession, user_id: str) -> InvestorProfile:
@@ -75,6 +82,8 @@ async def update_profile(
     data = update.model_dump(exclude_none=True)
     if "risk_profile" in data and data["risk_profile"] not in VALID_RISK:
         data.pop("risk_profile")
+    if "dividend_preference" in data and data["dividend_preference"] not in VALID_DIVIDEND_PREF:
+        data.pop("dividend_preference")
     if "base_currency" in data:
         data["base_currency"] = data["base_currency"].upper()
 

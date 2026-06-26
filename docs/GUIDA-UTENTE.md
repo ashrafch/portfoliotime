@@ -127,7 +127,8 @@ Quando l'allocazione consigliata cambia, in **dashboard** compare un avviso ("�
 Nella pagina **Profilo** imposti una volta sola:
 - la tua **età**,
 - il tuo **profilo di rischio** (conservativo, bilanciato, aggressivo),
-- la valuta e l'obiettivo (es. "pensione", "crescita del capitale").
+- la valuta e l'obiettivo (es. "pensione", "crescita del capitale"),
+- il **Paese** e la **preferenza dividendi** (accumulazione / distribuzione): servono a ordinare gli esempi di strumenti nel piano in modo adatto a te (es. ETF ad accumulazione, comuni in Italia).
 
 Questi dati **pre-compilano** le nuove simulazioni e rendono più pertinente l'interpretazione AI. Nella dashboard trovi anche le **statistiche personali**: rendimento medio delle tue simulazioni, quante volte hai battuto il mercato, la migliore e la peggiore.
 

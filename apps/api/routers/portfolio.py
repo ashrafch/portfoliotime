@@ -30,27 +30,37 @@ INSTRUMENT_PROXY = {
 
 # Esempi REALI di strumenti UCITS (adatti a un investitore in UE) allineati alla
 # categoria simulata. NON sono consigli personalizzati: vedi instruments_note.
+# dist: "Acc" (accumulazione) | "Dist" (distribuzione) | "—" (nessun provento, es. ETC)
 INSTRUMENT_EXAMPLES = {
     "azioni": [
-        {"name": "iShares Core S&P 500 UCITS", "ticker": "CSPX", "type": "ETF azionario USA"},
-        {"name": "Vanguard FTSE All-World UCITS", "ticker": "VWCE", "type": "ETF azionario globale"},
+        {"name": "iShares Core S&P 500 UCITS", "ticker": "CSPX", "type": "ETF azionario USA", "dist": "Acc"},
+        {"name": "Vanguard FTSE All-World UCITS (Acc)", "ticker": "VWCE", "type": "ETF azionario globale", "dist": "Acc"},
+        {"name": "Vanguard FTSE All-World UCITS (Dist)", "ticker": "VWRL", "type": "ETF azionario globale", "dist": "Dist"},
     ],
     "obbligazioni": [
-        {"name": "iShares $ Treasury Bond 20+yr UCITS", "ticker": "IDTL", "type": "ETF Treasury USA lunghe"},
-        {"name": "iShares Core Global Aggregate Bond UCITS", "ticker": "AGGH", "type": "ETF obbligazionario globale"},
+        {"name": "iShares Core Global Aggregate Bond UCITS (Acc)", "ticker": "AGGH", "type": "ETF obbligazionario globale", "dist": "Acc"},
+        {"name": "iShares $ Treasury Bond 20+yr UCITS (Dist)", "ticker": "IDTL", "type": "ETF Treasury USA lunghe", "dist": "Dist"},
     ],
     "oro": [
-        {"name": "iShares Physical Gold ETC", "ticker": "SGLN", "type": "ETC oro fisico"},
-        {"name": "Invesco Physical Gold ETC", "ticker": "SGLD", "type": "ETC oro fisico"},
+        {"name": "iShares Physical Gold ETC", "ticker": "SGLN", "type": "ETC oro fisico", "dist": "—"},
+        {"name": "Invesco Physical Gold ETC", "ticker": "SGLD", "type": "ETC oro fisico", "dist": "—"},
     ],
     "materie_prime": [
-        {"name": "Invesco Bloomberg Commodity UCITS", "ticker": "CMOD", "type": "ETF materie prime"},
-        {"name": "iShares Diversified Commodity Swap UCITS", "ticker": "ICOM", "type": "ETF materie prime"},
+        {"name": "Invesco Bloomberg Commodity UCITS (Acc)", "ticker": "CMOD", "type": "ETF materie prime", "dist": "Acc"},
+        {"name": "iShares Diversified Commodity Swap UCITS (Acc)", "ticker": "ICOM", "type": "ETF materie prime", "dist": "Acc"},
     ],
     "bitcoin": [
-        {"name": "ETP Bitcoin fisico (es. CoinShares, 21Shares)", "ticker": "—", "type": "ETP cripto (in UE non esistono ETF)"},
+        {"name": "ETP Bitcoin fisico (es. CoinShares, 21Shares)", "ticker": "—", "type": "ETP cripto (in UE non esistono ETF)", "dist": "—"},
     ],
 }
+
+
+def _order_examples(examples: list[dict], pref: str) -> list[dict]:
+    """Mette per primi gli esempi che corrispondono alla preferenza dividendi."""
+    if pref not in ("accumulazione", "distribuzione"):
+        return examples
+    want = "Acc" if pref == "accumulazione" else "Dist"
+    return sorted(examples, key=lambda e: 0 if e.get("dist") == want else 1)
 
 INSTRUMENTS_NOTE = (
     "Esempi di strumenti UCITS adatti a un investitore in UE, allineati alla categoria "
@@ -399,7 +409,7 @@ async def advice(
         breakdown.append({
             "asset": k,
             "instrument": INSTRUMENT_PROXY[k],
-            "examples": INSTRUMENT_EXAMPLES.get(k, []),
+            "examples": _order_examples(INSTRUMENT_EXAMPLES.get(k, []), profile.dividend_preference),
             "weight_pct": round(w, 1),
             "amount_now": round(request.initial_capital * w / 100.0, 2),       # compat
             "amount_initial": round(request.initial_capital * w / 100.0, 2),
@@ -469,6 +479,10 @@ async def advice(
         "required_monthly_contribution": required,
         "explanations": explanations,
         "instruments_note": INSTRUMENTS_NOTE,
+        "instruments_pref": {
+            "country": profile.country,
+            "dividend_preference": profile.dividend_preference,
+        },
         "disclaimer": (
             "Questo è uno strumento educativo basato su dati storici reali, non una "
             "consulenza finanziaria personalizzata. I risultati passati non garantiscono "

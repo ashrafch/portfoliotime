@@ -122,11 +122,12 @@ export interface AdviceResult {
   breakdown: {
     asset: string; instrument: string; weight_pct: number;
     amount_now: number; amount_initial: number; amount_monthly: number;
-    examples: { name: string; ticker: string; type: string }[];
+    examples: { name: string; ticker: string; type: string; dist: string }[];
   }[];
   composition: { initial: number; monthly_total: number; total: number; initial_share: number; months: number };
   glide: { enabled: boolean; start_equity: number; end_equity: number | null };
   instruments_note: string;
+  instruments_pref: { country: string; dividend_preference: string };
   reference_period: { from: string; to: string };
   reference_stats: { annual_return: number | null; annual_volatility: number | null };
   projection: {
@@ -215,6 +216,8 @@ export interface InvestorProfile {
   goal: string;
   default_tasso_fed: number;
   default_inflazione: number;
+  country: string;
+  dividend_preference: "accumulazione" | "distribuzione" | "indifferente";
 }
 
 export interface PersonalAnalytics {

@@ -199,8 +199,10 @@ export default function PlanPage() {
                     <div className="text-[11px] text-slate-500">{b.instrument}</div>
                     {b.examples?.length > 0 && (
                       <div className="text-[11px] text-slate-600"
-                        title={b.examples.map((e) => `${e.name} (${e.ticker})`).join(" · ")}>
-                        Es: {b.examples.map((e) => e.ticker).filter((t) => t !== "—").join(" · ") || b.examples[0].name}
+                        title={b.examples.map((e) => `${e.name} (${e.ticker}${e.dist !== "—" ? ", " + e.dist : ""})`).join(" · ")}>
+                        Es: {b.examples.slice(0, 2).map((e) =>
+                          e.ticker !== "—" ? `${e.ticker}${e.dist !== "—" ? " " + e.dist : ""}` : e.name
+                        ).join(" · ")}
                       </div>
                     )}
                   </div>
@@ -231,7 +233,10 @@ export default function PlanPage() {
                 <> — interamente come capitale iniziale</>
               )}.
             </p>
-            <p className="mt-2 text-[11px] text-slate-500">ℹ️ {result.instruments_note}</p>
+            <p className="mt-2 text-[11px] text-slate-500">
+              ℹ️ Esempi ordinati per la tua preferenza: <strong>{result.instruments_pref.dividend_preference}</strong>
+              {" "}· {result.instruments_pref.country}. {result.instruments_note}
+            </p>
           </section>
 
           {/* Scenari */}
