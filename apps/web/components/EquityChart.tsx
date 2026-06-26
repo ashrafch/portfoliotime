@@ -1,9 +1,9 @@
 "use client";
 
-import type { EquityPoint } from "@/lib/types";
+import type { EquityPoint, MarketEvent } from "@/lib/types";
 
 // Grafico a linee SVG self-contained (nessuna libreria esterna).
-export default function EquityChart({ data }: { data: EquityPoint[] }) {
+export default function EquityChart({ data, events = [] }: { data: EquityPoint[]; events?: MarketEvent[] }) {
   if (!data || data.length < 2) {
     return <p className="text-sm text-slate-500">Curva non disponibile.</p>;
   }
@@ -45,6 +45,19 @@ export default function EquityChart({ data }: { data: EquityPoint[] }) {
   // Etichette X: prima, metà, ultima
   const xLabels = [0, Math.floor(data.length / 2), data.length - 1];
 
+  // Mappa ogni evento al punto dati più vicino per data
+  const eventMarkers = events
+    .map((ev, k) => {
+      let best = -1;
+      for (let i = 0; i < data.length; i++) {
+        if (data[i].date <= ev.date) best = i;
+        else break;
+      }
+      if (best < 0) return null;
+      return { x: xOf(best), label: ev.label, date: ev.date, k };
+    })
+    .filter((m): m is { x: number; label: string; date: string; k: number } => m !== null);
+
   return (
     <div className="w-full overflow-x-auto">
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ minWidth: 480 }}>
@@ -56,6 +69,12 @@ export default function EquityChart({ data }: { data: EquityPoint[] }) {
               {t.v.toFixed(0)}
             </text>
           </g>
+        ))}
+
+        {/* marker eventi storici (linee verticali) */}
+        {eventMarkers.map((m) => (
+          <line key={m.k} x1={m.x} y1={pad.top} x2={m.x} y2={H - pad.bottom}
+            stroke="#f59e0b" strokeWidth="1" strokeDasharray="2 2" opacity="0.55" />
         ))}
 
         {/* etichette X */}
@@ -82,7 +101,25 @@ export default function EquityChart({ data }: { data: EquityPoint[] }) {
             <span className="inline-block h-0.5 w-4 border-t border-dashed border-slate-500" /> Benchmark (S&amp;P 500)
           </span>
         )}
+        {eventMarkers.length > 0 && (
+          <span className="flex items-center gap-1">
+            <span className="inline-block h-3 w-0 border-l border-dashed border-amber-500" /> Eventi storici
+          </span>
+        )}
       </div>
+
+      {/* Elenco eventi nel periodo */}
+      {eventMarkers.length > 0 && (
+        <ul className="mt-3 grid grid-cols-1 gap-x-6 gap-y-1 text-xs text-slate-400 sm:grid-cols-2">
+          {eventMarkers.map((m) => (
+            <li key={m.k} className="flex gap-2">
+              <span className="text-amber-500">▸</span>
+              <span className="text-slate-500">{m.date}</span>
+              <span>{m.label}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

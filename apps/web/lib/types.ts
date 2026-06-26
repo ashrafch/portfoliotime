@@ -28,6 +28,18 @@ export interface EquityPoint {
   benchmark?: number;
 }
 
+export interface MoneyProjection {
+  initial_capital: number;
+  final_value: number;
+  total_invested: number;
+  gain: number;
+  money_return: number | null;
+  contribution: number;
+  contribution_frequency: string;
+  contributions_count: number;
+  is_dca: boolean;
+}
+
 export interface SimulationResultData {
   allocazione: Allocation;
   allocation_source?: "chameleon" | "custom";
@@ -41,8 +53,32 @@ export interface SimulationResultData {
   benchmark_max_drawdown: number | null;
   benchmark_total_return: number | null;
   equity_curve: EquityPoint[];
+  // metriche avanzate (opzionali: i record vecchi potrebbero non averle)
+  sortino_ratio?: number | null;
+  calmar_ratio?: number | null;
+  var_95?: number | null;
+  cvar_95?: number | null;
+  beta?: number | null;
+  max_underwater_days?: number | null;
+  drawdown_recovered?: boolean;
+  money?: MoneyProjection | null;
   sources: Record<string, string>;
   warnings: string[];
+}
+
+export interface MonteCarloResult {
+  n_simulations: number;
+  horizon_days: number;
+  final_return: { p5: number; p25: number; p50: number; p75: number; p95: number };
+  prob_loss: number;
+  band: { x: number[]; p5: number[]; p50: number[]; p95: number[] };
+  method: string;
+  disclaimer: string;
+}
+
+export interface MarketEvent {
+  date: string;
+  label: string;
 }
 
 export interface SimulationRecord {
@@ -80,6 +116,9 @@ export interface SimulateRequest {
   date_to: string;
   benchmark_ticker: string;
   custom_allocation?: Allocation | null;
+  initial_capital?: number;
+  contribution?: number;
+  contribution_frequency?: "none" | "monthly" | "quarterly";
 }
 
 export interface InvestorProfile {

@@ -13,6 +13,7 @@ const DEFAULTS: SimulateRequest = {
   is_post_halving: false, tasso_nominale: 5.25, inflazione: 3.5,
   tassi_in_calo: false, qe_attivo: false,
   date_from: "2007-10-09", date_to: "2009-03-09", benchmark_ticker: "SPY",
+  initial_capital: 10000, contribution: 0, contribution_frequency: "none",
 };
 
 const DEFAULT_ALLOC: Allocation = {
@@ -236,6 +237,34 @@ export default function SimulatePage() {
             )}
           </section>
         )}
+
+        {/* Importi: capitale e piano di accumulo */}
+        <section className="rounded-lg border border-slate-800 p-6">
+          <h2 className="mb-1 text-lg font-semibold text-green-400">Importi</h2>
+          <p className="mb-4 text-xs text-slate-500">
+            Per vedere i risultati anche in denaro. I rendimenti sono calcolati su asset
+            quotati in USD e non includono l&apos;effetto del cambio.
+          </p>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <Field label="Capitale iniziale">
+              <input type="number" min={0} step={500} value={form.initial_capital}
+                onChange={(e) => update("initial_capital", parseFloat(e.target.value) || 0)} className={inputCls} />
+            </Field>
+            <Field label="Versamento periodico (DCA)">
+              <input type="number" min={0} step={50} value={form.contribution}
+                onChange={(e) => update("contribution", parseFloat(e.target.value) || 0)} className={inputCls} />
+            </Field>
+            <Field label="Frequenza versamento">
+              <select value={form.contribution_frequency}
+                onChange={(e) => update("contribution_frequency", e.target.value as SimulateRequest["contribution_frequency"])}
+                className={inputCls}>
+                <option value="none">Nessuno (solo capitale iniziale)</option>
+                <option value="monthly">Mensile</option>
+                <option value="quarterly">Trimestrale</option>
+              </select>
+            </Field>
+          </div>
+        </section>
 
         {error && <div className="rounded bg-red-950 px-4 py-3 text-sm text-red-400">{error}</div>}
 

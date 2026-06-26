@@ -22,7 +22,7 @@ export default function Navbar() {
   if (isSuperAdmin) links.push({ href: "/admin", label: "Admin" });
 
   return (
-    <nav className="border-b border-slate-800 bg-slate-900/80 backdrop-blur">
+    <nav className="no-print border-b border-slate-800 bg-slate-900/80 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
         <div className="flex items-center gap-6">
           <Link href="/dashboard" className="text-lg font-bold">
