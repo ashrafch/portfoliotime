@@ -27,6 +27,13 @@ All'avvio il backend crea automaticamente le tabelle e due account demo:
 > e la narrativa usa un fallback deterministico. Se imposti `ANTHROPIC_API_KEY` nel `.env`,
 > la narrativa viene generata da Claude.
 
+### Documentazione
+
+- 📖 [Guida per l'utente](docs/GUIDA-UTENTE.md) — cosa fa il prodotto, in linguaggio semplice
+- 🛠️ [Guida per lo sviluppatore](docs/GUIDA-SVILUPPATORE.md) — architettura, moduli, API, procedure
+- 📐 [Formule cliente](docs/formule-cliente.md) — riferimento del motore Chameleon
+- 🚀 [Avvio locale](AVVIO_LOCALE.md) — guida passo-passo Windows
+
 ### Funzionalità
 
 - **Autenticazione JWT** con due ruoli (RBAC): super admin e utente standard
