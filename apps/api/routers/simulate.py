@@ -23,7 +23,7 @@ from models.portfolio import SimulationRecord
 from security import get_current_user
 from engine.simulator import SimulationInput, run_simulation
 from engine.narrative import build_narrative
-from data.yfinance_client import fetch_prices, ASSET_TICKERS
+from data import price_repository, fred_client
 from config import get_settings
 
 router = APIRouter()
@@ -117,9 +117,33 @@ async def create_simulation(
         if request.is_post_halving and request.btc_prezzo_corrente > 0:
             tickers.append("BTC-USD")
 
-        prices = await fetch_prices(tickers, request.date_from, request.date_to)
+        # Prezzi con cache TimescaleDB + fallback (affidabilità)
+        prices, cache_warnings, price_sources = await price_repository.get_prices(
+            db, tickers, request.date_from, request.date_to
+        )
         result = run_simulation(sim_input, prices)
+
+        # FRED: rendimento reale da inflazione storica reale, se configurato
+        real_source = "calculated"
+        if (
+            fred_client.is_configured()
+            and result.total_return is not None
+            and not math.isnan(result.total_return)
+        ):
+            try:
+                infl_total = await fred_client.period_inflation_total(
+                    request.date_from, request.date_to
+                )
+                if infl_total is not None:
+                    result.real_return = (1.0 + result.total_return) / (1.0 + infl_total) - 1.0
+                    real_source = "fred"
+            except Exception:  # noqa: BLE001
+                pass
+
         narrative = build_narrative(sim_input, result)
+
+        sources = {**result.sources, **price_sources, "real_return": real_source}
+        all_warnings = list(result.warnings) + cache_warnings
 
         result_dict = _clean_nan({
             "allocazione": result.allocazione,
@@ -133,8 +157,8 @@ async def create_simulation(
             "benchmark_max_drawdown": result.benchmark_max_drawdown,
             "benchmark_total_return": result.benchmark_total_return,
             "equity_curve": result.equity_curve,
-            "sources": result.sources,
-            "warnings": result.warnings,
+            "sources": sources,
+            "warnings": all_warnings,
         })
         record.result = result_dict
         record.narrative = narrative
