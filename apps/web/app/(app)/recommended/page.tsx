@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { apiRequest } from "@/lib/api";
 import { pct } from "@/lib/format";
+import FredNotice from "@/components/FredNotice";
 import type { RecommendedResult, Allocation } from "@/lib/types";
 
 const LABELS: Record<string, string> = {
@@ -38,6 +39,7 @@ export default function RecommendedPage() {
 
   return (
     <div>
+      <FredNotice />
       <div className="mb-1 flex items-center gap-2">
         <h1 className="text-3xl font-bold">Allocazione di oggi</h1>
         <span className={`rounded px-2 py-0.5 text-xs ${data.source === "fred" ? "bg-green-500/10 text-green-400" : "bg-slate-700/50 text-slate-300"}`}>

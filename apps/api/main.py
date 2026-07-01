@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from config import get_settings
 from migrations import run_migrations
 from seed import seed_users
+from data import fred_client
 from routers import simulate, scenarios, portfolio, auth, admin, macro, me
 
 settings = get_settings()
@@ -48,3 +49,17 @@ app.include_router(me.router, prefix="/me", tags=["me"])
 @app.get("/health")
 async def health():
     return {"status": "ok", "version": "1.0.0"}
+
+
+@app.get("/config")
+async def config_status():
+    """Stato delle integrazioni opzionali (solo booleani, nessun segreto esposto).
+
+    Usato dal frontend per mostrare avvisi quando una fonte dati non è configurata.
+    """
+    ai_key = settings.anthropic_api_key or ""
+    ai_ok = bool(ai_key) and "INSERISCI" not in ai_key and ai_key.startswith("sk-")
+    return {
+        "fred_configured": fred_client.is_configured(),
+        "ai_configured": ai_ok,
+    }

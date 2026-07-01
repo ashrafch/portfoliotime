@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { apiRequest } from "@/lib/api";
 import { pct } from "@/lib/format";
+import FredNotice from "@/components/FredNotice";
 import type { CategoryGuidance } from "@/lib/types";
 
 const COLORS: Record<string, string> = {
@@ -26,6 +27,7 @@ export default function CategoriePage() {
 
   return (
     <div>
+      <FredNotice />
       <h1 className="mb-1 text-3xl font-bold">Guida alle categorie</h1>
       <p className="mb-6 max-w-2xl text-slate-400">
         Cosa sono, a cosa servono e <strong>cosa guardare per scegliere</strong> in ogni categoria.

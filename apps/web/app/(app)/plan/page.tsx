@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { apiRequest } from "@/lib/api";
 import { pct, money } from "@/lib/format";
+import FredNotice from "@/components/FredNotice";
 import type { AdviceResult, InvestorProfile, CategoryGuidance, CategoryGuidanceItem } from "@/lib/types";
 
 const COLORS: Record<string, string> = {
@@ -58,6 +59,7 @@ export default function PlanPage() {
 
   return (
     <div>
+      <FredNotice />
       <h1 className="mb-1 text-3xl font-bold">Il tuo piano</h1>
       <p className="mb-6 max-w-2xl text-slate-400">
         Un consiglio concreto su <strong>come ripartire i tuoi soldi</strong> e la
