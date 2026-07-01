@@ -67,7 +67,7 @@ Premendo un pulsante, il sistema genera **migliaia di scenari possibili** rimesc
 > ⚠️ Onestà: **non è una previsione del futuro.** È un esercizio statistico per dare un'idea di quanto i risultati possano variare. Lo scriviamo chiaramente anche nell'app.
 
 ### L'interpretazione AI
-Un breve testo che riassume il risultato a parole, tenendo conto del tuo profilo di rischio e del tuo obiettivo.
+Un breve testo che riassume il risultato a parole, tenendo conto del tuo profilo di rischio e del tuo obiettivo. Quando l'AI (Claude) è configurata, l'interpretazione è generata dall'intelligenza artificiale a partire **solo dai numeri già calcolati** dal motore: l'AI spiega, non inventa mai cifre. Senza AI configurata vedi comunque una spiegazione automatica costruita dai numeri.
 
 ---
 

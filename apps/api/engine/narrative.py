@@ -2,8 +2,8 @@
 Generazione narrativa contestuale.
 
 R1: I numeri arrivano SEMPRE dal motore. Qui si genera solo l'interpretazione.
-Se ANTHROPIC_API_KEY è configurata → narrativa via Claude.
-Altrimenti → narrativa deterministica da template basata sui numeri calcolati.
+Se ANTHROPIC_API_KEY è configurata → narrativa via Claude (ai.client, asincrono).
+Altrimenti (o su errore/rifiuto) → narrativa deterministica da template.
 """
 
 from __future__ import annotations
@@ -11,8 +11,23 @@ from __future__ import annotations
 import math
 from config import get_settings
 from engine.simulator import SimulationInput, SimulationResult
+from ai import client as ai_client
 
 settings = get_settings()
+
+# Istruzioni di sistema: definiscono ruolo, lunghezza, tono e i vincoli R1.
+_SYSTEM_PROMPT = (
+    "Sei un analista finanziario. Il tuo compito è interpretare in italiano, in modo "
+    "chiaro e comprensibile, i risultati GIÀ CALCOLATI di una simulazione di portafoglio.\n"
+    "Regole tassative:\n"
+    "- Usa esclusivamente i numeri forniti nei DATI. NON inventare, arrotondare in modo "
+    "diverso, né dedurre altri numeri.\n"
+    "- Non dare consigli d'investimento personalizzati.\n"
+    "- Spiega cosa significano i risultati (rendimento, rischio, confronto col mercato), "
+    "collegandoli al contesto e, se presente, al profilo dell'utente.\n"
+    "- Massimo ~130 parole, un solo paragrafo, niente elenchi puntati.\n"
+    "- Chiudi ricordando che è un'analisi educativa su dati storici, non una raccomandazione."
+)
 
 
 def _pct(x: float | None) -> str:
@@ -27,21 +42,45 @@ def _num(x: float | None) -> str:
     return f"{x:.2f}"
 
 
-def build_narrative(sim_input: SimulationInput, result: SimulationResult, profile=None) -> str:
-    """Restituisce una narrativa in italiano. Prova Claude, poi fallback template.
+async def build_narrative(sim_input: SimulationInput, result: SimulationResult, profile=None) -> str:
+    """Narrativa in italiano. Prova Claude (async); su assenza chiave/errore usa il template.
 
     profile (InvestorProfile, opzionale) personalizza l'interpretazione.
     """
-    if settings.anthropic_api_key:
-        try:
-            return _claude_narrative(sim_input, result, profile)
-        except Exception:  # noqa: BLE001 — fallback robusto se l'API non risponde
-            pass
-    return _template_narrative(sim_input, result, profile)
+    text = await ai_client.generate(_SYSTEM_PROMPT, _facts(sim_input, result, profile))
+    return text or _template_narrative(sim_input, result, profile)
+
+
+def _facts(sim_input: SimulationInput, result: SimulationResult, profile) -> str:
+    """Costruisce il blocco DATI passato a Claude — SOLO valori già calcolati (R1)."""
+    lines = [
+        f"periodo: {sim_input.date_from} → {sim_input.date_to}",
+        f"eta_investitore: {sim_input.eta}",
+        f"tipo_allocazione: {result.allocation_source}",
+        f"allocazione_%: {result.allocazione}",
+        f"rendimento_totale: {_pct(result.total_return)}",
+        f"cagr_annuo: {_pct(result.cagr)}",
+        f"volatilita_annua: {_pct(result.annualized_volatility)}",
+        f"max_drawdown: {_pct(result.max_drawdown)}",
+        f"sharpe_ratio: {_num(result.sharpe_ratio)}",
+        f"rendimento_reale: {_pct(result.real_return)}",
+        f"benchmark_SP500_rendimento_totale: {_pct(result.benchmark_total_return)}",
+        f"contesto_QE_attivo: {sim_input.qe_attivo}",
+        f"contesto_tassi_in_calo: {sim_input.tassi_in_calo}",
+        f"contesto_post_halving_BTC: {sim_input.is_post_halving}",
+    ]
+    if profile is not None:
+        risk = getattr(profile, "risk_profile", None)
+        goal = getattr(profile, "goal", "") or ""
+        if risk:
+            lines.append(f"profilo_rischio_utente: {risk}")
+        if goal:
+            lines.append(f"obiettivo_utente: {goal}")
+    return "DATI (già calcolati dal motore, non modificarli):\n" + "\n".join(lines)
 
 
 def _profile_note(profile, result) -> str:
-    """Frase personalizzata sul profilo di rischio dell'utente."""
+    """Frase personalizzata sul profilo di rischio dell'utente (per il template)."""
     if profile is None:
         return ""
     risk = getattr(profile, "risk_profile", None)
@@ -63,6 +102,7 @@ def _profile_note(profile, result) -> str:
 
 
 def _template_narrative(sim_input: SimulationInput, result: SimulationResult, profile=None) -> str:
+    """Fallback deterministico: interpretazione costruita dai numeri, senza AI."""
     alloc = result.allocazione
     top_asset = max(alloc, key=alloc.get) if alloc else "n/d"
     alloc_kind = "personalizzata" if result.allocation_source == "custom" else "Chameleon"
@@ -97,40 +137,3 @@ def _template_narrative(sim_input: SimulationInput, result: SimulationResult, pr
         f"Nota: tutti i valori sono calcolati dal motore finanziario su dati di mercato reali; "
         f"questa è un'interpretazione, non una raccomandazione d'investimento."
     )
-
-
-def _claude_narrative(sim_input: SimulationInput, result: SimulationResult, profile=None) -> str:
-    """Genera la narrativa con Claude passando SOLO numeri già calcolati (R1)."""
-    import anthropic
-
-    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
-    facts = {
-        "periodo": f"{sim_input.date_from} → {sim_input.date_to}",
-        "eta": sim_input.eta,
-        "profilo_rischio": getattr(profile, "risk_profile", None),
-        "obiettivo": getattr(profile, "goal", None),
-        "tipo_allocazione": result.allocation_source,
-        "allocazione_pct": result.allocazione,
-        "rendimento_totale": result.total_return,
-        "cagr": result.cagr,
-        "volatilita_annua": result.annualized_volatility,
-        "max_drawdown": result.max_drawdown,
-        "sharpe": result.sharpe_ratio,
-        "rendimento_reale": result.real_return,
-        "benchmark_rendimento_totale": result.benchmark_total_return,
-        "qe_attivo": sim_input.qe_attivo,
-        "tassi_in_calo": sim_input.tassi_in_calo,
-        "post_halving": sim_input.is_post_halving,
-    }
-    prompt = (
-        "Sei un analista finanziario. Interpreta in italiano (max 150 parole) i seguenti "
-        "RISULTATI GIÀ CALCOLATI di una simulazione di portafoglio. NON inventare numeri, "
-        "usa solo quelli forniti. Concludi che non è una raccomandazione d'investimento.\n\n"
-        f"DATI: {facts}"
-    )
-    msg = client.messages.create(
-        model=settings.claude_model,
-        max_tokens=settings.claude_max_tokens,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    return msg.content[0].text.strip()

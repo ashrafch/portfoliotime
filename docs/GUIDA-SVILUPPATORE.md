@@ -54,7 +54,9 @@ portfoliotime/
 │   │   │   ├── simulator.py      # orchestratore: allocazione → metriche → money/DCA
 │   │   │   ├── montecarlo.py     # proiezione bootstrap (storico)
 │   │   │   ├── planning.py       # goal-based: proiezione forward + versamento richiesto
-│   │   │   └── narrative.py      # interpretazione (Claude o template)
+│   │   │   └── narrative.py      # interpretazione (Claude via ai/ o template)
+│   │   ├── ai/
+│   │   │   └── client.py         # wrapper async Anthropic (opzionale, R1-safe, fallback)
 │   │   ├── data/
 │   │   │   ├── yfinance_client.py   # download prezzi (azioni/ETF + BTC)
 │   │   │   ├── price_repository.py  # cache TimescaleDB + fallback
@@ -185,10 +187,35 @@ probabilità di perdita e bande temporali per il fan chart.
 > volatility clustering, e campiona dallo *stesso* periodo. È una proiezione, non una
 > previsione. Evoluzione naturale: *block bootstrap*.
 
-### Narrativa (`engine/narrative.py`)
-`build_narrative(sim_input, result, profile)`: se `ANTHROPIC_API_KEY` è presente usa
-Claude passando **solo numeri già calcolati** (R1); altrimenti genera un testo
-deterministico dai numeri. In entrambi i casi è personalizzata sul profilo di rischio.
+### Narrativa (`engine/narrative.py` + `ai/client.py`)
+`build_narrative(sim_input, result, profile)` è **asincrona** (`await`): se
+`ANTHROPIC_API_KEY` è configurata usa Claude, altrimenti genera un testo
+deterministico dai numeri. In entrambi i casi è personalizzata sul profilo.
+
+Il blocco DATI passato a Claude (`_facts`) contiene **solo numeri già calcolati**
+dal motore (R1) + il contesto (regime macro, profilo di rischio/obiettivo). Il
+system prompt vieta di inventare numeri e chiude sempre col disclaimer educativo.
+
+### Architettura AI (`ai/client.py`)
+Wrapper professionale attorno all'SDK ufficiale `anthropic`:
+
+- **Client asincrono** (`AsyncAnthropic`): non blocca l'event loop di FastAPI
+  (il vecchio client sincrono chiamato da una route async lo bloccava — bug corretto).
+- **Niente sampling params e niente `thinking`**: il compito è una sintesi breve in
+  request-path; così è veloce e **portabile su tutti i modelli** (opus-4-8, sonnet-4-6…),
+  alcuni dei quali rifiutano `temperature`/`budget_tokens`.
+- **Guardrail R1**: `generate(system, user)` riceve solo fatti già calcolati.
+- **Robustezza**: se la chiave manca, l'API dà errore, o `stop_reason == "refusal"`,
+  ritorna `None` → il chiamante usa il fallback deterministico. Nessuna eccezione
+  propagata alla request; `max_retries=2` per 429/5xx; client riusato (pool).
+- **Modello**: da `settings.claude_model` (env `CLAUDE_MODEL`), default
+  `claude-sonnet-4-6` (adeguato e conveniente per una sintesi; documentato in AGENT.md).
+  Per la massima qualità: `CLAUDE_MODEL=claude-opus-4-8` nel `.env`.
+- **Stato esposto**: `GET /config` → `ai_configured` (booleano; il frontend mostra
+  l'avviso quando l'AI non è attiva). Nessun segreto esposto.
+
+> ⚠️ Cambiare la chiave nel `.env` richiede di **ricreare** il container
+> (`docker compose up -d --force-recreate api`): un semplice `restart` non ricarica `env_file`.
 
 ---
 
@@ -274,14 +301,15 @@ I NaN vengono convertiti in `null` prima del salvataggio JSON (`_clean_nan`).
 
 ## 10. Test
 
-`cd apps/api && pytest -q` → **109 test**:
+`cd apps/api && pytest -q` → **126 test**:
 - `test_metrics.py` — formule Chameleon + metriche base (valori a mano);
 - `test_advanced_metrics.py` — Sortino, Calmar, VaR, CVaR, Beta, recovery;
 - `test_simulator.py` — pipeline su prezzi sintetici;
 - `test_api_auth.py` — login, register, RBAC, utente disattivato;
 - `test_api_simulate.py` — simulazione, ownership, DCA, Monte Carlo, export, eventi;
 - `test_planning.py` — goal-based: proiezione, contributo richiesto, allocazioni di riferimento;
-- `test_api_portfolio.py` — stress test, goal plan, allocazione consigliata, piano unico (advice), notifiche.
+- `test_api_portfolio.py` — stress test, goal plan, allocazione consigliata, piano unico (advice), notifiche;
+- `test_ai.py` — integrazione AI: is_configured, fallback senza chiave, guardrail R1 (solo numeri).
 
 Infrastruttura test: SQLite in-memory + override di `get_db` + mock del repository
 prezzi (nessuna rete). Config in `pytest.ini` (`asyncio_mode=auto`).

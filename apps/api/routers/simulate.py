@@ -171,7 +171,7 @@ async def create_simulation(
         profile = (await db.execute(
             select(InvestorProfile).where(InvestorProfile.user_id == current_user.id)
         )).scalar_one_or_none()
-        narrative = build_narrative(sim_input, result, profile=profile)
+        narrative = await build_narrative(sim_input, result, profile=profile)
 
         sources = {**result.sources, **price_sources, "real_return": real_source}
         all_warnings = list(result.warnings) + cache_warnings
